@@ -1,35 +1,28 @@
-"""SakuraEngine: hardware-agnostic wrapper around the MERA NPU target."""
+"""SakuraEngine: wraps the MERA NPU target and platform for SAKURA-II."""
 
-try:
-    import mera
-except ImportError:  # pragma: no cover
-    # Simulation fallback — real MERA SDK not installed.
-    from types import ModuleType as _ModuleType
-
-    mera = _ModuleType("mera")
-
-    class _SimTarget:
-        SAKURA_II = "SAKURA_II"
-
-        def __init__(self, target_type: str):
-            self.target_type = target_type
-
-    mera.Target = _SimTarget  # type: ignore[attr-defined]
+import mera
 
 GREETING = "Hello from Sakura-II: Titan Biosignature Engine Active"
 
 
 class SakuraEngine:
-    """Initializes a MERA Target and exposes the NPU greeting."""
+    """Binds a MERA Target + Platform and exposes the NPU greeting."""
 
-    def __init__(self, target=None):
-        if target is None:
-            target = mera.Target(mera.Target.SAKURA_II)
+    def __init__(
+        self,
+        target: mera.Target = mera.Target.Simulator,
+        platform: mera.Platform = mera.Platform.SAKURA_2C,
+    ):
         self._target = target
+        self._platform = platform
 
     @property
-    def target(self):
+    def target(self) -> mera.Target:
         return self._target
+
+    @property
+    def platform(self) -> mera.Platform:
+        return self._platform
 
     def greeting(self) -> str:
         return GREETING
