@@ -21,7 +21,7 @@ poetry install          # creates .venv/, installs all deps + editable src insta
 git config core.hooksPath .githooks
 
 # 5. Verify everything works
-poetry run pytest       # must show 100% coverage, all 10 tests PASSED
+poetry run pytest       # must show 100% coverage, all 35 tests PASSED
 ```
 
 ---
@@ -37,6 +37,8 @@ poetry run pytest       # must show 100% coverage, all 10 tests PASSED
 | `poetry run ruff format src/ tests/` | Auto-format source and tests |
 | `poetry run ruff check --fix src/ tests/` | Lint and auto-fix fixable issues |
 | `poetry run sakura hello` | Execute CLI greeting command |
+| `poetry run sakura models list` | List all registered models with Space-Ready status |
+| `poetry run sakura models inspect <name>` | Show NPU constraints for a specific model |
 | `poetry run sakura --help` | Show CLI help |
 | `poetry run streamlit run src/sakura_simulator/app.py` | Launch web UI (http://localhost:8501) |
 | `poetry add <pkg>` | Add a runtime dependency |
@@ -54,13 +56,17 @@ poetry run pytest       # must show 100% coverage, all 10 tests PASSED
 src/sakura_simulator/       Main package (Poetry src layout)
     __init__.py             Exports SakuraEngine, __version__
     engine.py               SakuraEngine — wraps mera.Target, owns GREETING constant
-    cli.py                  Typer CLI — callback() + hello() subcommand
-    app.py                  Streamlit UI — main() + _get_engine() cached factory
+    cli.py                  Typer CLI — callback() + hello() + models subgroup
+    app.py                  Streamlit UI — main() + _get_engine() + Model Control Center
+    registry.py             ModelRegistry — YAML manifest loader, Pydantic validation, SHA-256 integrity
+configs/
+    models.yaml             Model manifest — defines name, version, path, checksum, npu_constraints
 tests/
     conftest.py             sys.modules mock injection (mera + streamlit)
-    test_engine.py          BDD tests for SakuraEngine (4 tests)
-    test_cli.py             BDD tests for CLI (2 tests)
-    test_app.py             BDD tests for Streamlit page (4 tests)
+    test_engine.py          BDD tests for SakuraEngine (6 tests)
+    test_cli.py             BDD tests for CLI (6 tests)
+    test_app.py             BDD tests for Streamlit page (10 tests)
+    test_registry.py        BDD tests for ModelRegistry (13 tests)
 .githooks/
     pre-commit              Blocks git commit if pytest fails
 .claude/
@@ -95,11 +101,53 @@ Without this, `@st.cache_resource` would replace `_get_engine` with a `MagicMock
 breaking the button-click branch test. After any `st.reset_mock()` call in tests,
 you must re-apply this `side_effect`.
 
+### Model Registry
+
+`configs/models.yaml` defines all quantized SLMs available to SAKURA-II. The registry
+provides Pydantic schema validation and SHA-256 file integrity checking ("bit-flip protection").
+
+**Pydantic models** (`src/sakura_simulator/registry.py`):
+- `NPUConstraints` — `max_power_watts: float`, `required_memory_mb: int`
+- `ModelEntry` — `name`, `version`, `path`, `checksum` (sha256 hex), `npu_constraints`
+- `ModelManifest` — `models: list[ModelEntry]`
+
+**`ModelRegistry` API**:
+- `ModelRegistry(manifest_path)` — loads and validates YAML; raises `FileNotFoundError` or
+  `pydantic.ValidationError` on bad input
+- `.list_models()` → `list[ModelEntry]`
+- `.get_model(name)` → `ModelEntry | None`
+- `.is_space_ready(entry)` → `bool` (file exists AND sha256 matches manifest)
+
+**Mock strategy for CLI/app tests**: CLI and app functions import `ModelRegistry` lazily
+(`from sakura_simulator.registry import ModelRegistry` inside function body). Tests inject a
+`MagicMock` module into `sys.modules["sakura_simulator.registry"]` in `setup_method` so
+the lazy import picks up the mock at call time.
+
+### How to Add a New Model
+
+```bash
+# 1. Copy the compiled .mera model file into models/
+cp /path/to/your_model.mera models/
+
+# 2. Compute its SHA-256 checksum
+sha256sum models/your_model.mera
+
+# 3. Add an entry to configs/models.yaml
+#    (copy an existing block and fill in name, version, path, checksum, npu_constraints)
+
+# 4. Verify the registry sees it and passes integrity
+poetry run sakura models inspect your_model_name
+
+# 5. Run full test suite (coverage must remain 100%)
+poetry run pytest
+```
+
 ### CLI Design
 
 The Typer app has an explicit `@app.callback()` to force a Click Group structure.
-This makes `hello` a true named subcommand, so `sakura hello` works both from the
-command line and via `CliRunner.invoke(app, ["hello"])` in tests.
+`hello` is a top-level subcommand; `models` is a nested `typer.Typer` added via
+`app.add_typer(models_app, name="models")`, providing `sakura models list` and
+`sakura models inspect <name>`.
 
 ---
 

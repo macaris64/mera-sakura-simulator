@@ -1,0 +1,15 @@
+models:
+  - name: resnet50
+    version: "1.0.0"
+    path: "models/resnet50.mera"
+    checksum: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    npu_constraints:
+      max_power_watts: 12.5
+      required_memory_mb: 512
+  - name: mobilenet_v2
+    version: "2.0.0"
+    path: "models/mobilenet_v2.mera"
+    checksum: "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3"
+    npu_constraints:
+      max_power_watts: 8.0
+      required_memory_mb: 256
