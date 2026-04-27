@@ -1,0 +1,51 @@
+[tool.poetry]
+name = "mera-sakura-simulator"
+version = "0.1.0"
+description = "Hello World simulator for the EdgeCortix SAKURA-II NPU using the MERA framework"
+authors = ["Mehmet Acar <mehmetacar683@gmail.com>"]
+readme = "README.md"
+packages = [{include = "sakura_simulator", from = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+typer = {extras = ["all"], version = "^0.12"}
+streamlit = "^1.35"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0"
+pytest-cov = "^5.0"
+
+[tool.poetry.scripts]
+sakura = "sakura_simulator.cli:app"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = [
+    "--cov=sakura_simulator",
+    "--cov-branch",
+    "--cov-report=term-missing",
+    "--cov-fail-under=100",
+    "-v",
+]
+
+[tool.coverage.run]
+source = ["sakura_simulator"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 100
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+]
+
+[tool.coverage.paths]
+source = [
+    "src/sakura_simulator",
+    "*/site-packages/sakura_simulator",
+]

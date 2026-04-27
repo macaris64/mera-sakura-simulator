@@ -1,0 +1,34 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(poetry run pytest*)",
+      "Bash(poetry run python*)",
+      "Bash(poetry run sakura*)",
+      "Bash(poetry run streamlit*)",
+      "Bash(poetry install*)",
+      "Bash(poetry add*)",
+      "Bash(poetry build*)",
+      "Bash(poetry shell*)",
+      "Bash(git status*)",
+      "Bash(git log*)",
+      "Bash(git diff*)",
+      "Bash(git add*)",
+      "Bash(git commit*)",
+      "Bash(git init*)",
+      "Bash(git config*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_TOOL_INPUT_COMMAND\" | grep -q 'git commit'; then echo '[pre-commit hook] Running test suite...'; cd /home/aero/Code/mera-sakura-simulator && export PATH=\"$HOME/.local/bin:$PATH\" && poetry run pytest --no-header -q || { echo '[BLOCKED] Tests must pass before committing.'; exit 2; }; fi"
+          }
+        ]
+      }
+    ]
+  }
+}

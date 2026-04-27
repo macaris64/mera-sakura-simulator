@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Pre-commit hook: blocks commit if tests do not pass at 100% branch coverage.
+# Install with: git config core.hooksPath .githooks
+set -euo pipefail
+
+export PATH="$HOME/.local/bin:$PATH"
+
+echo "[pre-commit] Verifying test suite..."
+poetry run pytest --no-header -q
+
+echo "[pre-commit] All tests passed. Proceeding with commit."

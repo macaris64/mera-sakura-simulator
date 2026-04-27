@@ -1,0 +1,31 @@
+{
+  "name": "sakura-npu-monitor",
+  "version": "0.1.0",
+  "description": "Simulated SAKURA-II NPU hardware monitoring and telemetry for Claude Code",
+  "tools": [
+    {
+      "name": "get_npu_status",
+      "description": "Return simulated SAKURA-II NPU hardware status (online/offline, temperature, utilization)",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    },
+    {
+      "name": "get_telemetry",
+      "description": "Return simulated NPU performance telemetry snapshot (inference latency, throughput, power draw)",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "window_ms": {
+            "type": "integer",
+            "description": "Telemetry window in milliseconds",
+            "default": 1000
+          }
+        },
+        "required": []
+      }
+    }
+  ]
+}
