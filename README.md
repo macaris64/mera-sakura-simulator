@@ -1,14 +1,14 @@
 # mera-sakura-simulator
 
-A **Hello World simulator** for the [EdgeCortix SAKURA-II NPU](https://www.edgecortix.com/sakura-ii) using the MERA framework — built with strict **Test-Driven Development (TDD)** and **Behavior-Driven Development (BDD)** practices.
+A **Hello World simulator** for the [EdgeCortix SAKURA-II NPU](https://www.edgecortix.com/en/products/sakura) using the [MERA framework](https://www.edgecortix.com/en/products/mera) — built with strict **Test-Driven Development (TDD)** and **Behavior-Driven Development (BDD)** practices.
 
-> Hardware-agnostic: runs everywhere via a MERA mock layer. No physical NPU or SDK required.
+> Runs against the real [MERA SDK](https://github.com/Edgecortix-Inc/mera) (`mera.Target.Simulator` + `mera.Platform.SAKURA_2C`). No physical NPU required.
 
 ---
 
 ## Features
 
-- `SakuraEngine` — wraps `mera.Target` for SAKURA-II NPU initialization
+- `SakuraEngine` — wraps [`mera.Target`](https://github.com/Edgecortix-Inc/mera) and `mera.Platform` for SAKURA-II NPU initialization
 - **CLI** via [Typer](https://typer.tiangolo.com/): `sakura hello`
 - **Web UI** via [Streamlit](https://streamlit.io/): activate the engine from a browser
 - **100% branch coverage** enforced by pytest-cov on every commit
@@ -68,7 +68,7 @@ src/sakura_simulator/
     __init__.py     Package init, re-exports SakuraEngine
 
 tests/
-    conftest.py     sys.modules mock injection (mera + streamlit)
+    conftest.py     sys.modules mock injection (streamlit only — mera is a real dep)
     test_engine.py  BDD tests — SakuraEngine (4 tests)
     test_cli.py     BDD tests — CLI (2 tests)
     test_app.py     BDD tests — Streamlit page (4 tests)
@@ -109,12 +109,16 @@ poetry run pytest          # must show 100%
 
 ---
 
-## Mock Architecture
+## MERA SDK
 
-`mera` is not a standard pip package. The project uses two layers:
+This project depends on the real [EdgeCortix MERA SDK](https://github.com/Edgecortix-Inc/mera) (`mera>=1.6.0` from PyPI). `SakuraEngine` uses:
 
-1. **Tests**: `tests/conftest.py` injects a minimal `ModuleType("mera")` into `sys.modules` before any test file is collected — so `import mera` inside `engine.py` always resolves to the mock.
-2. **Runtime**: `engine.py` has a `try/except ImportError` fallback that builds an inline simulation target, so `sakura hello` works without the real SDK.
+- **[`mera.Target.Simulator`](https://github.com/Edgecortix-Inc/mera)** — software simulation target (no physical hardware needed)
+- **`mera.Platform.SAKURA_2C`** — the [SAKURA-II](https://www.edgecortix.com/en/products/sakura) chip platform (`DNAA600L0003`)
+
+The [MERA framework](https://www.edgecortix.com/en/products/mera) supports PyTorch, TensorFlow, and ONNX models with INT8 quantization and multiple deployment backends.
+
+Only `streamlit` is mocked in tests (to avoid requiring a running Streamlit server); `mera` is imported directly from the installed package.
 
 ---
 
