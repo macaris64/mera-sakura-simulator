@@ -30,9 +30,12 @@ poetry run pytest       # must show 100% coverage, all 10 tests PASSED
 
 | Command | Description |
 |---------|-------------|
-| `poetry run pytest` | Full test suite with 100% branch coverage enforcement |
+| `poetry run pytest` | Full suite + 100% branch coverage enforcement |
 | `poetry run pytest --no-cov -x` | Fast iteration — stop at first failure, no coverage |
 | `poetry run pytest --no-cov tests/test_engine.py` | Run a single test file |
+| `poetry run ruff check src/ tests/` | Lint (E, F, W, I, UP rules) |
+| `poetry run ruff format src/ tests/` | Auto-format source and tests |
+| `poetry run ruff check --fix src/ tests/` | Lint and auto-fix fixable issues |
 | `poetry run sakura hello` | Execute CLI greeting command |
 | `poetry run sakura --help` | Show CLI help |
 | `poetry run streamlit run src/sakura_simulator/app.py` | Launch web UI (http://localhost:8501) |

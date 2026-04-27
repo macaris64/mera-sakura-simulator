@@ -6,7 +6,6 @@ import sakura_simulator.app as app_module
 
 
 class TestStreamlitPage:
-
     def setup_method(self):
         """Reset mock state and re-apply cache_resource pass-through before each test."""
         self.st = sys.modules["streamlit"]

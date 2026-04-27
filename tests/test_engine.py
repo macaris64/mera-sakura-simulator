@@ -2,12 +2,11 @@
 
 from unittest.mock import MagicMock
 
-from sakura_simulator.engine import GREETING, SakuraEngine
 from sakura_simulator import SakuraEngine as SakuraEngineFromPackage
+from sakura_simulator.engine import GREETING, SakuraEngine
 
 
 class TestSakuraEngineInitialization:
-
     def test_given_no_target_when_init_then_creates_sakura_ii_target(self):
         # Given: no target argument
         # When: engine is constructed
@@ -26,7 +25,6 @@ class TestSakuraEngineInitialization:
 
 
 class TestSakuraEngineGreeting:
-
     def test_given_initialized_engine_when_greeting_called_then_returns_exact_string(self):
         # Given: a running engine
         engine = SakuraEngine()

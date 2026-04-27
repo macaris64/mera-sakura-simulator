@@ -8,7 +8,6 @@ runner = CliRunner()
 
 
 class TestHelloCommand:
-
     def test_given_hello_command_when_invoked_then_exits_successfully(self):
         # Given: the CLI app
         # When: `sakura hello` is invoked

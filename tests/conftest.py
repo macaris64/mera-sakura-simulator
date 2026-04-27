@@ -10,7 +10,6 @@ import sys
 from types import ModuleType
 from unittest.mock import MagicMock
 
-
 # --- MERA mock ---------------------------------------------------------------
 
 _mera = ModuleType("mera")
