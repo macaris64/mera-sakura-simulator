@@ -10,7 +10,7 @@ packages = [{include = "sakura_simulator", from = "src"}]
 python = "^3.10"
 typer = {extras = ["all"], version = "^0.12"}
 streamlit = "^1.35"
-mera = {git = "https://github.com/Edgecortix-Inc/mera.git"}
+mera = ">=1.6.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0"

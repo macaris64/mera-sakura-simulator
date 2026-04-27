@@ -1100,13 +1100,15 @@ files = [
 
 [[package]]
 name = "mera"
-version = "1.6.0"
+version = "1.6.0.post1"
 description = "An heterogeneous deep learning compiler framework."
 optional = false
 python-versions = ">=3.6"
 groups = ["main"]
-files = []
-develop = false
+files = [
+    {file = "mera-1.6.0.post1-cp310-cp310-manylinux_2_27_x86_64.whl", hash = "sha256:a72515bb9bd1a44c36ede576641e070b8fd14d1a6a25055c1dc2b96398673622"},
+    {file = "mera-1.6.0.post1-cp38-cp38-manylinux_2_27_x86_64.whl", hash = "sha256:b2e648a188aaa9504b7e63a52aac54fa2bf325e6a6f0cf00bc727417088dd8ae"},
+]
 
 [package.dependencies]
 matplotlib = "*"
@@ -1118,12 +1120,6 @@ tqdm = "*"
 [package.extras]
 full = ["mera-tvm-full", "onednn-cpu-gomp (==2022.0.2)", "tensorflow (<=2.9.0)", "tflite (==2.4.0)", "torch (<=1.12.1)", "torchvision (<=0.13.1)"]
 runtime = ["mera-tvm-runtime"]
-
-[package.source]
-type = "git"
-url = "https://github.com/Edgecortix-Inc/mera.git"
-reference = "HEAD"
-resolved_reference = "b7eeb0c62ad8c4930731641fb3fc2f39a9f65eff"
 
 [[package]]
 name = "narwhals"
@@ -2457,4 +2453,4 @@ watchmedo = ["PyYAML (>=3.10)"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.10"
-content-hash = "2c6abeff7807453da5c09ffd0308f7cab8635de29dd520c59482264f0e472ea9"
+content-hash = "6f7119430a1ad499d35324632b50835cf6d0438633ef40fd1c0574025046f9d0"
