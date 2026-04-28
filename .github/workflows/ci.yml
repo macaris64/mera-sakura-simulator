@@ -160,3 +160,37 @@ jobs:
             printf "Actual:   %s\n" "$actual"
             exit 1
           fi
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # 5. MODEL MANAGEMENT SMOKE — resnet50 list/inspect/download/remove via CLI
+  # ─────────────────────────────────────────────────────────────────────────────
+  model-management-smoke:
+    name: Model Management Smoke
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Poetry
+        run: pip install poetry==${{ env.POETRY_VERSION }}
+
+      - name: Configure in-project virtualenv
+        run: poetry config virtualenvs.in-project true
+
+      - name: Restore virtualenv cache
+        id: cache-venv
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-py${{ env.PYTHON_VERSION }}-${{ hashFiles('poetry.lock') }}
+
+      - name: Install dependencies (cache miss fallback)
+        if: steps.cache-venv.outputs.cache-hit != 'true'
+        run: poetry install
+
+      - name: Smoke test — model management (list, inspect, download, remove)
+        run: poetry run pytest tests/smoke/ --no-cov -v

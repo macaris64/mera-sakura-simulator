@@ -6,3 +6,5 @@ htmlcov/
 .coverage
 *.egg-info/
 dist/
+models/*.onnx
+models/*.mera
