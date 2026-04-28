@@ -1,17 +1,17 @@
 models:
   - name: resnet50
-    version: "1.0.0"
-    path: "models/resnet50.mera"
-    checksum: "ef555f8b9b411756fa1fac2d2f0af5ddb53f0d8c918b78ee55c0a6adcf9d859f"
-    source_url: "https://raw.githubusercontent.com/macaris64/mera-sakura-simulator/feature/model-registry/models/resnet50.mera"
+    version: "2.7.0"
+    path: "models/resnet50.onnx"
+    checksum: "79102261eb6e5fd7af5d27f41316293e388c5cb691e5d25bfb035c4f64fefe31"
+    source_url: "https://huggingface.co/onnxmodelzoo/resnet50-v2-7/resolve/main/resnet50-v2-7.onnx"
     npu_constraints:
       max_power_watts: 12.5
       required_memory_mb: 512
   - name: mobilenet_v2
-    version: "2.0.0"
-    path: "models/mobilenet_v2.mera"
-    checksum: "2bbcf006928eecc5ec415c731f6769a70a5e9f9f9c987ef9318ccb444f4a6c99"
-    source_url: "https://raw.githubusercontent.com/macaris64/mera-sakura-simulator/feature/model-registry/models/mobilenet_v2.mera"
+    version: "1.2.0"
+    path: "models/mobilenet_v2.onnx"
+    checksum: "c0c3f76d93fa3fd6580652a45618618a220fced18babf65774ed169de0432ad5"
+    source_url: "https://huggingface.co/onnxmodelzoo/mobilenetv2-12/resolve/main/mobilenetv2-12.onnx"
     npu_constraints:
       max_power_watts: 8.0
       required_memory_mb: 256

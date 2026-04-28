@@ -28,7 +28,13 @@ requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = [
+    "tests/test_engine.py",
+    "tests/test_cli.py",
+    "tests/test_app.py",
+    "tests/test_registry.py",
+    "tests/test_smoke.py",
+]
 addopts = [
     "--cov=sakura_simulator",
     "--cov-branch",

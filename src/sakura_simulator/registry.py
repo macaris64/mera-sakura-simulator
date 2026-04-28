@@ -71,7 +71,7 @@ class ModelRegistry:
         model_path = Path(entry.path)
         model_path.parent.mkdir(parents=True, exist_ok=True)
 
-        response = httpx.get(entry.source_url, follow_redirects=True)
+        response = httpx.get(entry.source_url, follow_redirects=True, timeout=300.0)
         response.raise_for_status()
         model_path.write_bytes(response.content)
 
