@@ -2,16 +2,16 @@ models:
   - name: resnet50
     version: "1.0.0"
     path: "models/resnet50.mera"
-    checksum: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-    source_url: "https://models.sakura-ii.example.com/resnet50-v1.0.0.mera"
+    checksum: "ef555f8b9b411756fa1fac2d2f0af5ddb53f0d8c918b78ee55c0a6adcf9d859f"
+    source_url: "https://raw.githubusercontent.com/macaris64/mera-sakura-simulator/feature/model-registry/models/resnet50.mera"
     npu_constraints:
       max_power_watts: 12.5
       required_memory_mb: 512
   - name: mobilenet_v2
     version: "2.0.0"
     path: "models/mobilenet_v2.mera"
-    checksum: "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3"
-    source_url: "https://models.sakura-ii.example.com/mobilenet-v2-2.0.0.mera"
+    checksum: "2bbcf006928eecc5ec415c731f6769a70a5e9f9f9c987ef9318ccb444f4a6c99"
+    source_url: "https://raw.githubusercontent.com/macaris64/mera-sakura-simulator/feature/model-registry/models/mobilenet_v2.mera"
     npu_constraints:
       max_power_watts: 8.0
       required_memory_mb: 256
