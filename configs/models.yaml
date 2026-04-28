@@ -15,3 +15,35 @@ models:
     npu_constraints:
       max_power_watts: 8.0
       required_memory_mb: 256
+  - name: squeezenet1.0-12
+    version: "1.2.0"
+    path: "models/squeezenet1.0-12.onnx"
+    checksum: "dec81a8684617770b3cf13fadc1d92565d1d453d23935fc6388b792d99c992bd"
+    source_url: "https://huggingface.co/onnxmodelzoo/squeezenet1.0-12/resolve/main/squeezenet1.0-12.onnx"
+    npu_constraints:
+      max_power_watts: 6.0
+      required_memory_mb: 256
+  - name: inception-v1-12
+    version: "1.2.0"
+    path: "models/inception-v1-12.onnx"
+    checksum: "814b31a6316873bd03d2d808415ce1f40a7bf48ad88eab5ecc3cdc8dc6cf38ec"
+    source_url: "https://huggingface.co/onnxmodelzoo/inception-v1-12/resolve/main/inception-v1-12.onnx"
+    npu_constraints:
+      max_power_watts: 10.0
+      required_memory_mb: 512
+  - name: efficientnet-lite4-11
+    version: "1.1.0"
+    path: "models/efficientnet-lite4-11.onnx"
+    checksum: "d111689907c06eea7c82e4833ddef758da6453b9d4cf60b7e99ca05c7cbd9c12"
+    source_url: "https://huggingface.co/onnxmodelzoo/efficientnet-lite4-11/resolve/main/efficientnet-lite4-11.onnx"
+    npu_constraints:
+      max_power_watts: 8.5
+      required_memory_mb: 256
+  - name: mnist-12
+    version: "1.2.0"
+    path: "models/mnist-12.onnx"
+    checksum: "5c688690f8bacf667d4c2074af5ad0646ca328d7ab03eccf944a65b320171bdd"
+    source_url: "https://huggingface.co/onnxmodelzoo/mnist-12/resolve/main/mnist-12.onnx"
+    npu_constraints:
+      max_power_watts: 2.0
+      required_memory_mb: 64
