@@ -3,6 +3,7 @@
 import hashlib
 from pathlib import Path
 
+import httpx
 import yaml
 from pydantic import BaseModel
 
@@ -17,6 +18,7 @@ class ModelEntry(BaseModel):
     version: str
     path: str
     checksum: str
+    source_url: str | None = None
     npu_constraints: NPUConstraints
 
 
@@ -53,3 +55,44 @@ class ModelRegistry:
             return False
         actual = hashlib.sha256(model_path.read_bytes()).hexdigest()
         return actual == entry.checksum
+
+    def download(self, name: str) -> Path:
+        """Download a model file and verify its SHA-256 checksum immediately after write.
+
+        Raises ValueError for unknown model name, missing source_url, or checksum mismatch.
+        Raises httpx.HTTPStatusError for non-2xx HTTP responses.
+        """
+        entry = self.get_model(name)
+        if entry is None:
+            raise ValueError(f"Model '{name}' not in registry")
+        if entry.source_url is None:
+            raise ValueError(f"Model '{name}' has no source_url configured")
+
+        model_path = Path(entry.path)
+        model_path.parent.mkdir(parents=True, exist_ok=True)
+
+        response = httpx.get(entry.source_url)
+        response.raise_for_status()
+        model_path.write_bytes(response.content)
+
+        actual = hashlib.sha256(model_path.read_bytes()).hexdigest()
+        if actual != entry.checksum:
+            model_path.unlink()
+            raise ValueError(
+                f"Checksum mismatch for '{name}': expected {entry.checksum}, got {actual}"
+            )
+
+        return model_path
+
+    def remove(self, name: str) -> Path:
+        """Delete a downloaded model file from disk.
+
+        Raises ValueError if the model is not in the registry.
+        Raises FileNotFoundError if the file does not exist on disk.
+        """
+        entry = self.get_model(name)
+        if entry is None:
+            raise ValueError(f"Model '{name}' not in registry")
+        model_path = Path(entry.path)
+        model_path.unlink()
+        return model_path

@@ -92,3 +92,59 @@ class TestModelsInspectCommand:
         result = runner.invoke(app, ["models", "inspect", "ghost_model"])
         # Then: exits with code 1
         assert result.exit_code == 1
+
+
+class TestModelsDownloadCommand:
+    def setup_method(self):
+        from pathlib import Path
+
+        mock_module = MagicMock()
+        self.mock_registry = MagicMock()
+        mock_module.ModelRegistry.return_value = self.mock_registry
+        sys.modules["sakura_simulator.registry"] = mock_module
+        self.fake_path = Path("/tmp/models/resnet50.mera")
+
+    def test_given_valid_model_when_download_invoked_then_shows_path_and_exits_successfully(self):
+        # Given: registry download succeeds and returns the model path
+        self.mock_registry.download.return_value = self.fake_path
+        # When: models download resnet50 is invoked
+        result = runner.invoke(app, ["models", "download", "resnet50"])
+        # Then: exits successfully and confirms path in output
+        assert result.exit_code == 0
+        assert "Downloaded" in result.output
+
+    def test_given_download_error_when_invoked_then_shows_error_and_exits_with_code_1(self):
+        # Given: registry download raises ValueError (unknown name or checksum mismatch)
+        self.mock_registry.download.side_effect = ValueError("Checksum mismatch for 'resnet50'")
+        # When: models download resnet50 is invoked
+        result = runner.invoke(app, ["models", "download", "resnet50"])
+        # Then: exits with code 1 and error appears in output
+        assert result.exit_code == 1
+
+
+class TestModelsRemoveCommand:
+    def setup_method(self):
+        from pathlib import Path
+
+        mock_module = MagicMock()
+        self.mock_registry = MagicMock()
+        mock_module.ModelRegistry.return_value = self.mock_registry
+        sys.modules["sakura_simulator.registry"] = mock_module
+        self.fake_path = Path("/tmp/models/resnet50.mera")
+
+    def test_given_valid_model_when_remove_invoked_then_shows_path_and_exits_successfully(self):
+        # Given: registry remove succeeds and returns the model path
+        self.mock_registry.remove.return_value = self.fake_path
+        # When: models remove resnet50 is invoked
+        result = runner.invoke(app, ["models", "remove", "resnet50"])
+        # Then: exits successfully and confirms path in output
+        assert result.exit_code == 0
+        assert "Removed" in result.output
+
+    def test_given_remove_error_when_invoked_then_shows_error_and_exits_with_code_1(self):
+        # Given: registry remove raises FileNotFoundError (model file not on disk)
+        self.mock_registry.remove.side_effect = FileNotFoundError("resnet50.mera not found")
+        # When: models remove resnet50 is invoked
+        result = runner.invoke(app, ["models", "remove", "resnet50"])
+        # Then: exits with code 1
+        assert result.exit_code == 1

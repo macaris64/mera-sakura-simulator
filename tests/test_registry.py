@@ -3,6 +3,7 @@
 import hashlib
 import tempfile
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 import yaml
@@ -224,3 +225,128 @@ class TestModelRegistryIsSpaceReady:
         result = registry.is_space_ready(entry)
         # Then: False (file absent — mission abort)
         assert result is False
+
+
+class TestModelRegistryDownload:
+    def setup_method(self):
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self.tmpdir = Path(self._tmpdir.name)
+        self.content = b"fake model binary payload"
+        self.checksum = hashlib.sha256(self.content).hexdigest()
+        manifest_path = self.tmpdir / "models.yaml"
+        manifest_path.write_text(
+            yaml.dump(
+                {
+                    "models": [
+                        {
+                            "name": "resnet50",
+                            "version": "1.0.0",
+                            "path": str(self.tmpdir / "models" / "resnet50.mera"),
+                            "checksum": self.checksum,
+                            "source_url": "https://example.com/resnet50.mera",
+                            "npu_constraints": {"max_power_watts": 10.0, "required_memory_mb": 256},
+                        }
+                    ]
+                }
+            )
+        )
+        self.registry = ModelRegistry(manifest_path)
+
+    def teardown_method(self):
+        self._tmpdir.cleanup()
+
+    def test_given_unknown_model_when_download_called_then_raises_value_error(self):
+        # Given: registry does not contain "ghost_model"
+        # When / Then: ValueError with "not in registry"
+        with pytest.raises(ValueError, match="not in registry"):
+            self.registry.download("ghost_model")
+
+    def test_given_model_without_source_url_when_download_called_then_raises_value_error(self):
+        # Given: manifest entry with no source_url
+        no_url_path = self.tmpdir / "no_url.yaml"
+        no_url_path.write_text(
+            yaml.dump(
+                {
+                    "models": [
+                        {
+                            "name": "local_only",
+                            "version": "1.0",
+                            "path": str(self.tmpdir / "local.mera"),
+                            "checksum": "abc",
+                            "npu_constraints": {"max_power_watts": 5.0, "required_memory_mb": 128},
+                        }
+                    ]
+                }
+            )
+        )
+        registry = ModelRegistry(no_url_path)
+        # When / Then: ValueError with "no source_url"
+        with pytest.raises(ValueError, match="no source_url"):
+            registry.download("local_only")
+
+    def test_given_valid_model_when_download_called_then_saves_file_and_returns_path(self):
+        # Given: HTTP response returns content matching the manifest checksum
+        mock_response = MagicMock()
+        mock_response.content = self.content
+        # When: download is called
+        with patch("sakura_simulator.registry.httpx.get", return_value=mock_response):
+            path = self.registry.download("resnet50")
+        # Then: file written to disk and path returned
+        assert path.exists()
+        assert path.read_bytes() == self.content
+        mock_response.raise_for_status.assert_called_once()
+
+    def test_given_checksum_mismatch_when_download_called_then_raises_and_removes_file(self):
+        # Given: HTTP response returns corrupted/tampered content
+        mock_response = MagicMock()
+        mock_response.content = b"corrupted payload bit-flip detected"
+        model_path = self.tmpdir / "models" / "resnet50.mera"
+        # When / Then: ValueError with "Checksum mismatch"
+        with patch("sakura_simulator.registry.httpx.get", return_value=mock_response):
+            with pytest.raises(ValueError, match="Checksum mismatch"):
+                self.registry.download("resnet50")
+        # And: the corrupted file is removed from disk
+        assert not model_path.exists()
+
+
+class TestModelRegistryRemove:
+    def setup_method(self):
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self.tmpdir = Path(self._tmpdir.name)
+        self.model_file = self.tmpdir / "models" / "resnet50.mera"
+        manifest_path = self.tmpdir / "models.yaml"
+        manifest_path.write_text(
+            yaml.dump(
+                {
+                    "models": [
+                        {
+                            "name": "resnet50",
+                            "version": "1.0.0",
+                            "path": str(self.model_file),
+                            "checksum": "abc",
+                            "npu_constraints": {"max_power_watts": 10.0, "required_memory_mb": 256},
+                        }
+                    ]
+                }
+            )
+        )
+        self.registry = ModelRegistry(manifest_path)
+
+    def teardown_method(self):
+        self._tmpdir.cleanup()
+
+    def test_given_unknown_model_when_remove_called_then_raises_value_error(self):
+        # Given: registry does not contain "ghost_model"
+        # When / Then: ValueError with "not in registry"
+        with pytest.raises(ValueError, match="not in registry"):
+            self.registry.remove("ghost_model")
+
+    def test_given_downloaded_model_when_remove_called_then_deletes_file_and_returns_path(self):
+        # Given: model file exists on disk
+        self.model_file.parent.mkdir(parents=True, exist_ok=True)
+        self.model_file.write_bytes(b"model data")
+        # When: remove is called
+        returned_path = self.registry.remove("resnet50")
+        # Then: file is gone and the path is returned
+        assert returned_path == self.model_file
+        assert not self.model_file.exists()

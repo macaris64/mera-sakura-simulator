@@ -43,6 +43,40 @@ def models_list(
     Console().print(table)
 
 
+@models_app.command("download")
+def models_download(
+    name: str = typer.Argument(..., help="Model name to download"),
+    manifest: str = typer.Option("configs/models.yaml", "--manifest", help="Path to manifest YAML"),
+):
+    """Download a model file and verify its SHA-256 checksum."""
+    from sakura_simulator.registry import ModelRegistry
+
+    try:
+        registry = ModelRegistry(manifest)
+        path = registry.download(name)
+    except (FileNotFoundError, ValueError) as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(1)
+    typer.echo(f"Downloaded: {path}")
+
+
+@models_app.command("remove")
+def models_remove(
+    name: str = typer.Argument(..., help="Model name to remove"),
+    manifest: str = typer.Option("configs/models.yaml", "--manifest", help="Path to manifest YAML"),
+):
+    """Delete a downloaded model file from disk."""
+    from sakura_simulator.registry import ModelRegistry
+
+    try:
+        registry = ModelRegistry(manifest)
+        path = registry.remove(name)
+    except (FileNotFoundError, ValueError) as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(1)
+    typer.echo(f"Removed: {path}")
+
+
 @models_app.command("inspect")
 def models_inspect(
     name: str = typer.Argument(..., help="Model name to inspect"),

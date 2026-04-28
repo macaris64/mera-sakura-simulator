@@ -26,3 +26,11 @@ class SakuraEngine:
 
     def greeting(self) -> str:
         return GREETING
+
+    def load_model(self, entry) -> str:
+        """Load a model onto the NPU, or stage it for activation if the SDK is not ready."""
+        try:
+            self._target.load(entry.path)
+            return f"[NPU] Model {entry.name} loaded on {self._platform}"
+        except AttributeError:
+            return f"[SIMULATOR] Model {entry.name} staged for NPU activation"

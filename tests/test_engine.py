@@ -1,5 +1,7 @@
 """BDD tests for SakuraEngine."""
 
+from unittest.mock import MagicMock
+
 import mera
 
 from sakura_simulator import SakuraEngine as SakuraEngineFromPackage
@@ -51,3 +53,32 @@ class TestSakuraEngineGreeting:
         # When: compared to engine.greeting()
         # Then: they are identical
         assert engine.greeting() == GREETING
+
+
+class TestSakuraEngineLoadModel:
+    def test_given_npu_capable_target_when_load_model_called_then_returns_npu_message(self):
+        # Given: a target that exposes a load() method (NPU SDK ready)
+        mock_target = MagicMock()
+        entry = MagicMock()
+        entry.name = "resnet50"
+        entry.path = "/models/resnet50.mera"
+        engine = SakuraEngine(target=mock_target)
+        # When: load_model is called
+        result = engine.load_model(entry)
+        # Then: NPU activation message returned and load() was invoked with the model path
+        assert "[NPU]" in result
+        assert "resnet50" in result
+        mock_target.load.assert_called_once_with(entry.path)
+
+    def test_given_simulator_target_when_load_model_called_then_returns_staged_message(self):
+        # Given: default mera.Target.Simulator (enum member — no load() method)
+        engine = SakuraEngine()
+        entry = MagicMock()
+        entry.name = "mobilenet_v2"
+        entry.path = "/models/mobilenet_v2.mera"
+        # When: load_model is called
+        result = engine.load_model(entry)
+        # Then: simulator staging message returned
+        assert "[SIMULATOR]" in result
+        assert "mobilenet_v2" in result
+        assert "staged for NPU activation" in result
