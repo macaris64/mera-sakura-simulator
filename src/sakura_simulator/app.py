@@ -1,5 +1,7 @@
 """Streamlit UI page for the SAKURA-II simulator."""
 
+import datetime
+
 import streamlit as st
 
 from sakura_simulator.engine import SakuraEngine
@@ -28,7 +30,7 @@ def _render_model_control_center() -> None:
             compiled = registry.is_compiled(entry)
             compiled_indicator = ":green_circle:" if compiled else ":red_circle:"
             st.sidebar.markdown(f"{compiled_indicator} {entry.name} compiled")
-            col1, col2 = st.sidebar.columns(2)
+            col1, col2, col3 = st.sidebar.columns(3)
             if col1.button(f"Compile {entry.name}"):
                 from sakura_simulator.compiler import MeraCompiler
 
@@ -45,25 +47,67 @@ def _render_model_control_center() -> None:
                     st.sidebar.info(f"Avg: {result.avg_latency_ms:.2f} ms")
                 except (ValueError, FileNotFoundError) as exc:
                     st.sidebar.error(f"Run failed: {exc}")
-            if getattr(entry, "model_type", "vision") == "llm":
-                st.subheader(f"LLM Inference — {entry.name}")
-                prompt = st.text_area("Prompt", key=f"llm_prompt_{entry.name}")
-                max_new_tokens = st.slider(
-                    "Max new tokens", 1, 512, 128, key=f"max_tok_{entry.name}"
-                )
-                if st.button(f"Generate {entry.name}"):
-                    from sakura_simulator.runtime import MeraRuntime
-
-                    try:
-                        result = MeraRuntime().infer(
-                            entry, entry.artifact_dir, prompt, max_new_tokens=max_new_tokens
-                        )
-                        st.code(result.text, language=None)
-                        st.caption(f"{result.latency_ms:.0f} ms · {len(result.token_ids)} tokens")
-                    except (ValueError, FileNotFoundError) as exc:
-                        st.error(f"Inference failed: {exc}")
+            if col3.button(f"→ {entry.name}"):
+                st.session_state["chat_model"] = entry.name
+            col4, col5 = st.sidebar.columns(2)
+            if col4.button(f"Download {entry.name}"):
+                try:
+                    path = registry.download(entry.name)
+                    st.sidebar.success(f"Downloaded: {path.name}")
+                except (ValueError, FileNotFoundError) as exc:
+                    st.sidebar.error(f"Download failed: {exc}")
+            if col5.button(f"Remove {entry.name}"):
+                try:
+                    registry.remove(entry.name)
+                    st.sidebar.success(f"Removed: {entry.name}")
+                except (ValueError, FileNotFoundError) as exc:
+                    st.sidebar.error(f"Remove failed: {exc}")
     except FileNotFoundError:
         st.sidebar.warning("No model manifest found.")
+
+
+def _render_chat_panel(model_name: str) -> None:
+    """Render a WhatsApp-style chat interface for the given model."""
+    from sakura_simulator.registry import ModelRegistry
+
+    st.subheader(f"Chat — {model_name}")
+    if st.button("× Close"):
+        st.session_state["chat_model"] = None
+        return
+
+    history_key = f"chat_history_{model_name}"
+    if history_key not in st.session_state:
+        st.session_state[history_key] = []
+
+    for msg in st.session_state[history_key]:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+            st.caption(msg["time"])
+
+    user_input = st.chat_input("Type a message...")
+    if user_input is not None:
+        now = datetime.datetime.now().strftime("%H:%M")
+        st.session_state[history_key].append(
+            {"role": "user", "content": user_input, "time": now}
+        )
+        try:
+            registry = ModelRegistry()
+            entry = registry.get_model(model_name)
+            if entry is None:
+                raise ValueError(f"Model '{model_name}' not found in registry")
+            from sakura_simulator.runtime import MeraRuntime
+
+            result = MeraRuntime().infer(entry, entry.artifact_dir, user_input)
+            now = datetime.datetime.now().strftime("%H:%M")
+            st.session_state[history_key].append(
+                {"role": "assistant", "content": result.text, "time": now}
+            )
+        except (ValueError, FileNotFoundError) as exc:
+            now = datetime.datetime.now().strftime("%H:%M")
+            st.session_state[history_key].append(
+                {"role": "assistant", "content": f"Error: {exc}", "time": now}
+            )
+        st.rerun()
 
 
 def main():
@@ -72,6 +116,10 @@ def main():
     st.title("SAKURA-II NPU Simulator")
     st.markdown("EdgeCortix MERA Framework — Hardware-Agnostic Hello World")
     _render_model_control_center()
+
+    chat_model = st.session_state.get("chat_model")
+    if chat_model:
+        _render_chat_panel(chat_model)
 
     if st.button("Activate Engine"):
         engine = _get_engine()

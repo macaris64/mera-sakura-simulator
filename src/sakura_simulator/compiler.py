@@ -1,8 +1,18 @@
 """MeraCompiler: compile a source model into SAKURA-II deployment artifacts."""
 
+import platform
 from pathlib import Path
 
 from sakura_simulator.registry import ModelEntry
+
+# mera.deploy() auto-detects the host architecture via platform.processor(),
+# which returns '' inside Docker containers.  We derive it from platform.machine()
+# instead, which is correctly populated in containerised environments.
+_ARCH_MAP = {"x86_64": "x86", "i386": "x86", "AMD64": "x86"}
+
+
+def _host_arch() -> str:
+    return _ARCH_MAP.get(platform.machine(), "x86")
 
 
 class MeraCompiler:
@@ -36,5 +46,5 @@ class MeraCompiler:
         deployer = mera.TVMDeployer(str(artifact_path))
         loader = mera.ModelLoader(deployer)
         model = loader.from_onnx(str(source_path), model_name=entry.name)
-        deployer.deploy(model, mera_platform=self._platform, target=self._target)
+        deployer.deploy(model, mera_platform=self._platform, target=self._target, host_arch=_host_arch())
         return artifact_path

@@ -1,0 +1,42 @@
+# Version control
+.git/
+.gitignore
+.githooks/
+
+# Python virtual environment and build artifacts
+.venv/
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Test and coverage artifacts
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# Ruff cache
+.ruff_cache/
+
+# Large binary data — bind-mounted at runtime, not baked into the image.
+# models/ alone is ~668 MB (ONNX files); never include in build context.
+models/
+artifacts/
+tokenizers/
+
+# Claude-specific files
+.claude/
+.claude_plugin/
+
+# Documentation
+docs/
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo

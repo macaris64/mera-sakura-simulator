@@ -1,8 +1,10 @@
 # mera-sakura-simulator
 
-A **SAKURA-II NPU simulator** for the [EdgeCortix SAKURA-II NPU](https://www.edgecortix.com/en/products/sakura) using the [MERA framework](https://www.edgecortix.com/en/products/mera) — built with strict **Test-Driven Development (TDD)** and **Behavior-Driven Development (BDD)** practices.
+**SAKURA-II NPU Simulator** is a software-in-the-loop simulation platform for the [EdgeCortix SAKURA-II Neural Processing Unit](https://www.edgecortix.com/en/products/sakura). It drives the full [MERA framework](https://www.edgecortix.com/en/products/mera) compiler and runtime against `mera.Target.Simulator` so that model compilation, hardware-accurate inference, and LLM text generation can be developed, tested, and benchmarked without physical NPU hardware.
 
-> Runs against the real [MERA SDK](https://github.com/Edgecortix-Inc/mera) (`mera.Target.Simulator` + `mera.Platform.SAKURA_2C`). No physical NPU required.
+The project ships a **Typer CLI** (`sakura`), a **Streamlit web UI**, a **Pydantic-validated model registry**, and a **full autoregressive LLM inference pipeline** — all built with strict **Test-Driven Development (TDD)** and **Behavior-Driven Development (BDD)** practices, with 100% branch coverage enforced on every commit.
+
+> Targets `mera.Target.Simulator` + `mera.Platform.SAKURA_2C` (`DNAA600L0003`). No physical NPU required.
 
 ---
 
@@ -14,6 +16,7 @@ A **SAKURA-II NPU simulator** for the [EdgeCortix SAKURA-II NPU](https://www.edg
 - **LLM Inference**: autoregressive text generation from a prompt — greedy or multinomial sampling, EOS-aware loop, latency reporting
 - **SakuraTokenizer**: wraps HuggingFace `transformers.AutoTokenizer` with encode (optional truncation) and decode
 - **Web UI** via [Streamlit](https://streamlit.io/): activate the engine, manage models, and run LLM inference from a browser
+- **Docker support**: multi-stage image with `docker compose` services for both CLI and web UI
 - **100% branch coverage** enforced by pytest-cov on every commit
 - **BDD-style tests** with Given-When-Then structure, plus smoke tests for end-to-end workflows
 - **Pre-commit hook** that blocks commits if tests fail
@@ -21,7 +24,63 @@ A **SAKURA-II NPU simulator** for the [EdgeCortix SAKURA-II NPU](https://www.edg
 
 ---
 
-## Quick Start
+## Architecture
+
+```mermaid
+flowchart TD
+    subgraph UI["User Interfaces"]
+        CLI["CLI\nsakura hello / models …\ncli.py"]
+        WEB["Web UI\nlocalhost:8501\napp.py"]
+    end
+
+    subgraph Core["sakura_simulator — Core Package"]
+        ENG["SakuraEngine\nengine.py\nMERA target init · greeting"]
+        REG["ModelRegistry\nregistry.py\nYAML · Pydantic · SHA-256 · download"]
+        COMP["MeraCompiler\ncompiler.py\nONNX → SAKURA-II artifacts"]
+        RT["MeraRuntime\nruntime.py\nrun() vision · infer() LLM"]
+        TOK["SakuraTokenizer\ntokenizer.py\nencode · decode · eos_token_id"]
+    end
+
+    subgraph Data["Data & Configuration"]
+        YAML["configs/models.yaml\nPydantic-validated model manifest"]
+        MODELS["models/*.onnx\nONNX model weights"]
+        ARTS["artifacts/\ncompiled deployment files"]
+        TOKS["tokenizers/\nHuggingFace tokenizer files"]
+    end
+
+    subgraph SDK["EdgeCortix MERA SDK  (mera ≥ 1.6.0)"]
+        SIM["mera.Target.Simulator\nTVM graph executor"]
+        PLT["mera.Platform.SAKURA_2C\nDNAA600L0003 chip profile"]
+    end
+
+    CLI --> ENG
+    CLI --> REG
+    CLI --> COMP
+    CLI --> RT
+    CLI --> TOK
+    WEB --> ENG
+    WEB --> REG
+    WEB --> RT
+    WEB --> TOK
+
+    ENG --> SIM
+    ENG --> PLT
+    COMP --> SIM
+    RT --> SIM
+
+    REG --> YAML
+    REG --> MODELS
+    COMP --> MODELS
+    COMP --> ARTS
+    RT --> ARTS
+    TOK --> TOKS
+```
+
+---
+
+## Setup
+
+### Manual Setup
 
 ```bash
 # 1. Install Poetry (once per machine)
@@ -41,6 +100,66 @@ git config core.hooksPath .githooks
 # 5. Run the test suite
 poetry run pytest
 ```
+
+### Docker Setup
+
+Requires [Docker](https://docs.docker.com/get-docker/) with the Compose plugin. The multi-stage image installs the full MERA SDK (`mera[full]`) — the first build downloads ~2-3 GB of wheels and takes 10-20 minutes. Subsequent builds reuse the cached dependency layer.
+
+> **Note:** `mera` wheels are `manylinux_2_27_x86_64` only. The image will not run natively on ARM64 (Apple Silicon, AWS Graviton).
+
+```bash
+# Build the image
+docker compose build
+
+# Run a CLI command (the container entrypoint is already "sakura" — pass only the subcommand)
+docker compose run --rm cli hello
+# Hello from Sakura-II: Titan Biosignature Engine Active
+
+# List registered models
+docker compose run --rm cli models list
+
+# Download a model and verify its SHA-256 checksum
+docker compose run --rm cli models download mobilenet_v2
+
+# Compile a model (writes artifacts/ on the host via bind mount)
+docker compose run --rm cli models compile mobilenet_v2
+
+# Run inference from compiled artifacts
+docker compose run --rm cli models run mobilenet_v2 --iters 3
+
+# Start the web UI
+docker compose up web
+# Open http://localhost:8501
+```
+
+Large data directories (`models/`, `artifacts/`, `tokenizers/`) are bind-mounted from the host workspace at runtime — they are never baked into the image.
+
+#### LLM inference setup (one-time)
+
+LLM models (e.g. `distilgpt2`) require a local tokenizer directory before `models infer` can run. The `tokenizers/` volume is mounted read-only, so use a one-off container with a writable mount to save the tokenizer files to the host:
+
+```bash
+# 1. Save the tokenizer to tokenizers/distilgpt2/ on the host
+docker run --rm \
+  -v "$(pwd)/tokenizers:/workspace/tokenizers" \
+  --entrypoint python3 \
+  sakura-simulator:latest \
+  -c "
+from transformers import AutoTokenizer
+tok = AutoTokenizer.from_pretrained('distilgpt2')
+tok.save_pretrained('/workspace/tokenizers/distilgpt2')
+print('Done')
+"
+
+# 2. Compile the LLM model
+docker compose run --rm cli models compile distilgpt2
+
+# 3. Run LLM inference
+docker compose run --rm cli models infer distilgpt2 --prompt "Hello"
+docker compose run --rm cli models infer distilgpt2 --prompt "Hello" --max-new-tokens 32 --temperature 0.7
+```
+
+> **Note:** `distilgpt2` runs on the MERA Simulator (pure software). Expect ~1–2 s per token.
 
 ---
 
@@ -161,6 +280,9 @@ tests/
     test_infer.py    BDD tests — MeraRuntime.infer(), _sample_next_token, InferResult
     test_smoke.py    Smoke tests — full CLI workflows (download/remove/infer)
 
+Dockerfile           Multi-stage build (builder + runtime); mera[full] + system libs
+docker-compose.yml   cli service (one-shot) + web service (Streamlit daemon, port 8501)
+.dockerignore        Excludes .venv, models/, artifacts/, tokenizers/ from build context
 .claude/             Claude Code settings, agent instructions, slash commands
 .claude_plugin/      NPU telemetry simulation plugin for Claude Code
 .githooks/           pre-commit hook (runs pytest before every commit)

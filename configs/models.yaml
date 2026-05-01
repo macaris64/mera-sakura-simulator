@@ -40,3 +40,26 @@ models:
   path: models/distilgpt2.onnx
   tokenizer_path: tokenizers/distilgpt2
   version: 1.0.0
+- artifact_dir: artifacts/smollm2-135m-instruct/1.0.0
+  checksum: 8ea047df0d99a21f5e7c4d0cf23ea7a490e9a1bd5b7adc726315ac38debe9d32
+  context_length: 512
+  format: onnx
+  inputs:
+  - dtype: int64
+    name: input_ids
+    shape:
+    - 1
+    - 512
+  - dtype: int64
+    name: attention_mask
+    shape:
+    - 1
+    - 512
+  model_type: llm
+  name: smollm2-135m-instruct
+  npu_constraints:
+    max_power_watts: 15.0
+    required_memory_mb: 512
+  path: models/smollm2-135m-instruct.onnx
+  tokenizer_path: tokenizers/smollm2-135m-instruct
+  version: 1.0.0
