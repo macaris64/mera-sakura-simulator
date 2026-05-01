@@ -55,7 +55,8 @@ class TestResolveDeploymentDir:
         assert resolved == artifact_dir
 
     def test_given_target_without_strval_when_resolve_then_uses_str(
-        self, tmp_path: Path,
+        self,
+        tmp_path: Path,
     ):
         artifact_dir = tmp_path / "artifacts"
         artifact_dir.mkdir()
@@ -68,7 +69,8 @@ class TestResolveDeploymentDir:
         assert resolved == artifact_dir
 
     def test_given_no_strval_and_result_has_deploy_when_resolve_then_returns_result(
-        self, tmp_path: Path,
+        self,
+        tmp_path: Path,
     ):
         artifact_dir = tmp_path / "artifacts"
         result_dir = artifact_dir / "build" / "CustomTarget" / "result"
@@ -180,7 +182,8 @@ class TestBuildSimulatorRunner:
 
 class TestMakeRunnerBranching:
     def test_given_simulator_target_when_make_runner_then_builds_graph_runner_not_load_mera(
-        self, tmp_path: Path,
+        self,
+        tmp_path: Path,
     ):
         d = tmp_path / "r"
         d.mkdir()
