@@ -87,7 +87,7 @@ def _build_simulator_runner(deployment_dir: Path):
         import tvm
         from tvm.contrib.graph_executor import create as graph_create
         from tvm.runtime import load_module
-    except ImportError as exc:
+    except (ImportError, OSError) as exc:
         raise ValueError(f"TVM is required for inference: {exc}") from exc
 
     try:

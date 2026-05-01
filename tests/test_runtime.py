@@ -4,7 +4,7 @@ import builtins
 import sys
 import tempfile
 from pathlib import Path
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import mera.mera_deployment as mera_dep
@@ -140,21 +140,39 @@ class TestBuildSimulatorRunner:
                 _build_simulator_runner(d)
 
     def test_given_load_module_fails_when_build_then_value_error(self, tmp_path: Path):
-        pytest.importorskip("tvm")
-        import tvm.runtime as tvm_rt
-
         d = tmp_path / "r"
         d.mkdir()
         (d / "deploy.so").write_bytes(b"x")
         (d / "deploy.json").write_text("{}")
         (d / "deploy.params").write_bytes(b"x")
 
-        with patch.object(tvm_rt, "load_module", side_effect=OSError("bad so")):
+        # Fake a minimal tvm module tree to avoid importing native libs in CI.
+        tvm_mod = ModuleType("tvm")
+        tvm_mod.cpu = lambda _i=0: object()  # type: ignore[assignment]
+        tvm_runtime_mod = ModuleType("tvm.runtime")
+        tvm_runtime_mod.load_module = MagicMock(side_effect=OSError("bad so"))  # type: ignore[attr-defined]
+        tvm_contrib_mod = ModuleType("tvm.contrib")
+        tvm_graph_exec_mod = ModuleType("tvm.contrib.graph_executor")
+        tvm_graph_exec_mod.create = MagicMock()  # type: ignore[attr-defined]
+
+        real_import = builtins.__import__
+
+        def _fake_import(name, globals=None, locals=None, fromlist=(), level=0):
+            if name == "tvm":
+                return tvm_mod
+            if name == "tvm.runtime":
+                return tvm_runtime_mod
+            if name == "tvm.contrib":
+                return tvm_contrib_mod
+            if name == "tvm.contrib.graph_executor":
+                return tvm_graph_exec_mod
+            return real_import(name, globals, locals, fromlist, level)
+
+        with patch("builtins.__import__", side_effect=_fake_import):
             with pytest.raises(ValueError, match="Failed to load TVM deployment"):
                 _build_simulator_runner(d)
 
     def test_given_tvm_mocks_when_build_then_returns_simulator_runner(self, tmp_path: Path):
-        pytest.importorskip("tvm")
         d = tmp_path / "r"
         d.mkdir()
         (d / "deploy.so").write_bytes(b"x")
@@ -164,15 +182,35 @@ class TestBuildSimulatorRunner:
 
         mock_rt = MagicMock()
         fake_lib = object()
-        with (
-            patch("tvm.runtime.load_module", return_value=fake_lib) as mock_lm,
-            patch("tvm.contrib.graph_executor.create", return_value=mock_rt) as mock_create,
-        ):
+
+        # Fake a minimal tvm module tree to avoid importing native libs in CI.
+        tvm_mod = ModuleType("tvm")
+        tvm_mod.cpu = lambda _i=0: object()  # type: ignore[assignment]
+        tvm_runtime_mod = ModuleType("tvm.runtime")
+        tvm_runtime_mod.load_module = MagicMock(return_value=fake_lib)  # type: ignore[attr-defined]
+        tvm_contrib_mod = ModuleType("tvm.contrib")
+        tvm_graph_exec_mod = ModuleType("tvm.contrib.graph_executor")
+        tvm_graph_exec_mod.create = MagicMock(return_value=mock_rt)  # type: ignore[attr-defined]
+
+        real_import = builtins.__import__
+
+        def _fake_import(name, globals=None, locals=None, fromlist=(), level=0):
+            if name == "tvm":
+                return tvm_mod
+            if name == "tvm.runtime":
+                return tvm_runtime_mod
+            if name == "tvm.contrib":
+                return tvm_contrib_mod
+            if name == "tvm.contrib.graph_executor":
+                return tvm_graph_exec_mod
+            return real_import(name, globals, locals, fromlist, level)
+
+        with patch("builtins.__import__", side_effect=_fake_import):
             runner = _build_simulator_runner(d)
 
-        mock_lm.assert_called_once_with(str(d / "deploy.so"))
-        mock_create.assert_called_once()
-        call_json, call_lib, _cpu = mock_create.call_args[0]
+        tvm_runtime_mod.load_module.assert_called_once_with(str(d / "deploy.so"))  # type: ignore[attr-defined]
+        tvm_graph_exec_mod.create.assert_called_once()  # type: ignore[attr-defined]
+        call_json, call_lib, _cpu = tvm_graph_exec_mod.create.call_args[0]  # type: ignore[attr-defined]
         assert call_json == '{"graph":""}'
         assert call_lib is fake_lib
         mock_rt.load_params.assert_called_once_with(params)
