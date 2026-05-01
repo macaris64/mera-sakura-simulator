@@ -48,3 +48,22 @@ class SakuraEngine:
         from sakura_simulator.runtime import MeraRuntime
 
         return MeraRuntime(target=self._target).run(entry, entry.artifact_dir, iters=iters)
+
+    def run_model_infer(
+        self,
+        entry,
+        prompt: str,
+        *,
+        max_new_tokens: int = 128,
+        temperature: float = 1.0,
+    ):
+        """Run LLM inference on a compiled model via MeraRuntime.infer()."""
+        from sakura_simulator.runtime import MeraRuntime
+
+        return MeraRuntime(target=self._target).infer(
+            entry,
+            entry.artifact_dir,
+            prompt,
+            max_new_tokens=max_new_tokens,
+            temperature=temperature,
+        )

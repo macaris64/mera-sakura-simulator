@@ -45,6 +45,23 @@ def _render_model_control_center() -> None:
                     st.sidebar.info(f"Avg: {result.avg_latency_ms:.2f} ms")
                 except (ValueError, FileNotFoundError) as exc:
                     st.sidebar.error(f"Run failed: {exc}")
+            if getattr(entry, "model_type", "vision") == "llm":
+                st.subheader(f"LLM Inference — {entry.name}")
+                prompt = st.text_area("Prompt", key=f"llm_prompt_{entry.name}")
+                max_new_tokens = st.slider(
+                    "Max new tokens", 1, 512, 128, key=f"max_tok_{entry.name}"
+                )
+                if st.button(f"Generate {entry.name}"):
+                    from sakura_simulator.runtime import MeraRuntime
+
+                    try:
+                        result = MeraRuntime().infer(
+                            entry, entry.artifact_dir, prompt, max_new_tokens=max_new_tokens
+                        )
+                        st.code(result.text, language=None)
+                        st.caption(f"{result.latency_ms:.0f} ms · {len(result.token_ids)} tokens")
+                    except (ValueError, FileNotFoundError) as exc:
+                        st.error(f"Inference failed: {exc}")
     except FileNotFoundError:
         st.sidebar.warning("No model manifest found.")
 

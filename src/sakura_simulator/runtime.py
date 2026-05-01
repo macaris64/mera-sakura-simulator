@@ -110,6 +110,20 @@ def _make_runner(deployment_dir: Path, target):
 
 
 @dataclass
+class InferResult:
+    """Holds the generated text and token-level metadata from LLM inference.
+
+    All fields are typed primitives — no internal dicts — so a protobuf
+    serialization layer can be added later by mapping each field to a proto
+    field directly without touching the business logic that produces InferResult.
+    """
+
+    text: str
+    token_ids: list[int]
+    latency_ms: float
+
+
+@dataclass
 class RunResult:
     """Holds inference outputs and per-iteration latency measurements."""
 
@@ -130,6 +144,18 @@ class RunResult:
             return 0.0
         s = sorted(self.latency_ms)
         return s[max(0, int(len(s) * 0.95) - 1)]
+
+
+def _sample_next_token(logits_1d, temperature: float) -> int:
+    """Greedy decoding if temperature == 0.0; multinomial sampling otherwise."""
+    import numpy as np
+
+    if temperature == 0.0:
+        return int(np.argmax(logits_1d))
+    logits_1d = logits_1d / temperature
+    probs = np.exp(logits_1d - logits_1d.max())
+    probs /= probs.sum()
+    return int(np.random.choice(len(probs), p=probs))
 
 
 class MeraRuntime:
@@ -189,3 +215,88 @@ class MeraRuntime:
             raise
         except Exception as exc:
             raise ValueError(f"Run failed: {exc}") from exc
+
+    def infer(
+        self,
+        entry: ModelEntry,
+        artifact_dir: Path | str,
+        prompt: str,
+        *,
+        max_new_tokens: int = 128,
+        temperature: float = 1.0,
+    ) -> InferResult:
+        """Run autoregressive LLM inference on a prompt and return generated text.
+
+        Raises ValueError if entry.model_type != 'llm', tokenizer_path is not set,
+        or artifact_dir does not exist.
+        """
+        if entry.model_type != "llm":
+            raise ValueError(
+                f"Model '{entry.name}' is not an LLM (model_type={entry.model_type!r}). "
+                "Use MeraRuntime.run() for vision models."
+            )
+        if entry.tokenizer_path is None:
+            raise ValueError(f"Model '{entry.name}' has no tokenizer_path configured.")
+        artifact_path = Path(artifact_dir)
+        if not artifact_path.exists():
+            raise ValueError(f"Artifact directory not found: {artifact_path}")
+
+        import numpy as np
+
+        from sakura_simulator.tokenizer import SakuraTokenizer  # lazy — mocked in tests
+
+        tokenizer = SakuraTokenizer(entry.tokenizer_path)
+        encoded = tokenizer.encode(prompt, max_length=entry.context_length)
+        input_ids = encoded["input_ids"]
+        attention_mask = encoded["attention_mask"]
+        prompt_len = input_ids.shape[1]
+        eos_id = tokenizer.eos_token_id
+
+        deployment_dir = _resolve_deployment_dir(artifact_path, target=self._target)
+        runner = _make_runner(deployment_dir, self._target)
+
+        generated: list[int] = []
+        t0 = time.perf_counter()
+        if entry.context_length is not None:
+            pad_id = tokenizer.pad_token_id
+            if pad_id is None:
+                pad_id = eos_id if eos_id is not None else 0
+            ctx = entry.context_length
+            input_ids_buf = np.full((1, ctx), pad_id, dtype=np.int64)
+            input_ids_buf[0, :prompt_len] = input_ids[0]
+            attn_buf = np.zeros((1, ctx), dtype=np.int64)
+            attn_buf[0, :prompt_len] = attention_mask[0]
+            input_ids, attention_mask = input_ids_buf, attn_buf
+            current_pos = prompt_len
+            for _ in range(max_new_tokens):
+                runner.set_input({"input_ids": input_ids, "attention_mask": attention_mask})
+                runner.run()
+                logits = runner.get_outputs()[0]
+                logits_last = logits[0, current_pos - 1, :]
+                next_token = _sample_next_token(logits_last, temperature)
+                if eos_id is not None and next_token == eos_id:
+                    break
+                generated.append(next_token)
+                input_ids[0, current_pos] = next_token
+                attention_mask[0, current_pos] = 1
+                current_pos += 1
+        else:
+            for _ in range(max_new_tokens):
+                runner.set_input({"input_ids": input_ids, "attention_mask": attention_mask})
+                runner.run()
+                logits = runner.get_outputs()[0]
+                logits_last = logits[0, -1, :]
+                next_token = _sample_next_token(logits_last, temperature)
+                if eos_id is not None and next_token == eos_id:
+                    break
+                generated.append(next_token)
+                new_tok = np.array([[next_token]], dtype=np.int64)
+                input_ids = np.concatenate([input_ids, new_tok], axis=1)
+                attention_mask = np.concatenate(
+                    [attention_mask, np.ones((1, 1), dtype=np.int64)], axis=1
+                )
+        latency_ms = (time.perf_counter() - t0) * 1000
+
+        generated_ids = np.array(generated, dtype=np.int64).reshape(1, -1)
+        text = tokenizer.decode(generated_ids)
+        return InferResult(text=text, token_ids=generated, latency_ms=latency_ms)

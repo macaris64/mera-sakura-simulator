@@ -119,3 +119,24 @@ class TestSakuraEngineOrchestration:
         engine.run_model(entry)
         # Then: MeraRuntime.run was called with the entry
         self.mock_runtime.run.assert_called_once()
+
+    def test_given_llm_entry_when_run_model_infer_called_then_delegates_to_mera_runtime_infer(self):
+        # Given: a SakuraEngine and an LLM model entry
+        from sakura_simulator.runtime import InferResult
+
+        engine = SakuraEngine()
+        entry = MagicMock()
+        entry.artifact_dir = "/tmp/artifacts/tinyllama"
+        mock_result = InferResult(text="hello", token_ids=[1, 2], latency_ms=10.0)
+        self.mock_runtime.infer.return_value = mock_result
+        # When: run_model_infer is called with custom options
+        result = engine.run_model_infer(entry, "What is life?", max_new_tokens=64, temperature=0.8)
+        # Then: MeraRuntime.infer was called with all parameters forwarded
+        self.mock_runtime.infer.assert_called_once_with(
+            entry,
+            entry.artifact_dir,
+            "What is life?",
+            max_new_tokens=64,
+            temperature=0.8,
+        )
+        assert result is mock_result

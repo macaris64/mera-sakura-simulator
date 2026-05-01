@@ -243,3 +243,97 @@ class TestModelControlCenterCompileRun:
         app_module.main()
         # Then: error message is shown in sidebar
         self.st.sidebar.error.assert_called()
+
+
+class TestLLMInferPanel:
+    def setup_method(self):
+        """Reset mocks and inject registry + runtime stubs for an LLM model."""
+        self.st = sys.modules["streamlit"]
+        self.st.reset_mock()
+        self.st.cache_resource.side_effect = lambda fn: fn
+        self.st.button.return_value = False
+        self.st.button.side_effect = None  # clear any iterator left by previous test
+
+        self.mock_col1 = MagicMock()
+        self.mock_col2 = MagicMock()
+        self.mock_col1.button.return_value = False
+        self.mock_col2.button.return_value = False
+        self.st.sidebar.columns.return_value = (self.mock_col1, self.mock_col2)
+
+        # LLM model entry
+        self.entry = MagicMock()
+        self.entry.name = "tinyllama"
+        self.entry.version = "1.0.0"
+        self.entry.artifact_dir = "artifacts/tinyllama/1.0.0"
+        self.entry.model_type = "llm"
+
+        self.mock_registry = MagicMock()
+        self.mock_registry.list_models.return_value = [self.entry]
+        self.mock_registry.is_space_ready.return_value = True
+        self.mock_registry.is_compiled.return_value = True
+
+        mock_reg_mod = MagicMock()
+        mock_reg_mod.ModelRegistry.return_value = self.mock_registry
+        sys.modules["sakura_simulator.registry"] = mock_reg_mod
+
+        # Runtime stub
+        self.mock_runtime = MagicMock()
+        mock_runtime_mod = MagicMock()
+        mock_runtime_mod.MeraRuntime.return_value = self.mock_runtime
+        sys.modules["sakura_simulator.runtime"] = mock_runtime_mod
+
+    def teardown_method(self):
+        sys.modules.pop("sakura_simulator.registry", None)
+        sys.modules.pop("sakura_simulator.runtime", None)
+
+    def _make_infer_result(self):
+        r = MagicMock()
+        r.text = "I am a language model."
+        r.latency_ms = 120.0
+        r.token_ids = list(range(8))
+        return r
+
+    def test_given_llm_entry_when_rendered_then_llm_subheader_is_shown(self):
+        # Given: entry.model_type == "llm"
+        # When: main() renders the page
+        app_module.main()
+        # Then: st.subheader is called (LLM panel rendered)
+        calls = [str(c) for c in self.st.subheader.call_args_list]
+        assert any("LLM" in c or "tinyllama" in c for c in calls)
+
+    def test_given_vision_entry_when_rendered_then_no_llm_subheader(self):
+        # Given: entry.model_type == "vision" (LLM panel skipped)
+        self.entry.model_type = "vision"
+        # When: main() renders the page
+        app_module.main()
+        # Then: st.subheader is never called
+        self.st.subheader.assert_not_called()
+
+    def test_given_generate_button_clicked_when_infer_succeeds_then_code_and_caption_shown(self):
+        # Given: Generate button is clicked and infer() succeeds
+        self.mock_runtime.infer.return_value = self._make_infer_result()
+        # Generate button is first st.button call; Activate Engine is second
+        self.st.button.side_effect = [True, False]
+        # When: main() renders the page
+        app_module.main()
+        # Then: st.code shows the generated text; st.caption shows stats
+        self.st.code.assert_called_once_with("I am a language model.", language=None)
+        self.st.caption.assert_called_once()
+
+    def test_given_generate_button_clicked_when_infer_raises_then_error_shown(self):
+        # Given: Generate button is clicked but infer() raises ValueError
+        self.mock_runtime.infer.side_effect = ValueError("artifact not found")
+        self.st.button.side_effect = [True, False]
+        # When: main() renders the page
+        app_module.main()
+        # Then: st.error is called with the failure message
+        self.st.error.assert_called_once()
+        assert "Inference failed" in str(self.st.error.call_args)
+
+    def test_given_generate_button_not_clicked_when_rendered_then_no_code_shown(self):
+        # Given: Generate button is not clicked
+        self.st.button.return_value = False
+        # When: main() renders the page
+        app_module.main()
+        # Then: st.code is never called
+        self.st.code.assert_not_called()

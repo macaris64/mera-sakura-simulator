@@ -9,3 +9,4 @@ dist/
 models/*.onnx
 models/*.mera
 artifacts/
+tokenizers/

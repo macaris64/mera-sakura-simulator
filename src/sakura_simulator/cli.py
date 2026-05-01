@@ -131,6 +131,43 @@ def models_run(
         raise typer.Exit(1)
 
 
+@models_app.command("infer")
+def models_infer(
+    name: str = typer.Argument(..., help="Model name to run LLM inference on"),
+    prompt: str = typer.Option(..., "--prompt", "-p", help="Input prompt text"),
+    max_new_tokens: int = typer.Option(128, "--max-new-tokens", help="Max tokens to generate"),
+    temperature: float = typer.Option(1.0, "--temperature", help="Sampling temperature"),
+    manifest: str = typer.Option("configs/models.yaml", "--manifest", help="Path to manifest YAML"),
+):
+    """Run LLM inference: send a prompt and print the generated text."""
+    from sakura_simulator.registry import ModelRegistry
+    from sakura_simulator.runtime import MeraRuntime
+
+    try:
+        registry = ModelRegistry(manifest)
+        entry = registry.get_model(name)
+        if entry is None:
+            typer.echo(f"Error: Model not found: {name}", err=True)
+            raise typer.Exit(1)
+        if not registry.is_compiled(entry):
+            typer.echo(
+                f"Error: '{name}' is not compiled. Run: sakura models compile {name}", err=True
+            )
+            raise typer.Exit(1)
+        result = MeraRuntime().infer(
+            entry,
+            entry.artifact_dir,
+            prompt,
+            max_new_tokens=max_new_tokens,
+            temperature=temperature,
+        )
+        typer.echo(result.text)
+        typer.echo(f"[{result.latency_ms:.0f} ms, {len(result.token_ids)} tokens]")
+    except (FileNotFoundError, ValueError) as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(1)
+
+
 @models_app.command("inspect")
 def models_inspect(
     name: str = typer.Argument(..., help="Model name to inspect"),
