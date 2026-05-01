@@ -148,3 +148,145 @@ class TestModelsRemoveCommand:
         result = runner.invoke(app, ["models", "remove", "resnet50"])
         # Then: exits with code 1
         assert result.exit_code == 1
+
+
+class TestModelsCompileCommand:
+    def setup_method(self):
+        mock_reg_mod = MagicMock()
+        self.mock_registry = MagicMock()
+        mock_reg_mod.ModelRegistry.return_value = self.mock_registry
+        sys.modules["sakura_simulator.registry"] = mock_reg_mod
+
+        mock_compiler_mod = MagicMock()
+        self.mock_compiler = MagicMock()
+        mock_compiler_mod.MeraCompiler.return_value = self.mock_compiler
+        sys.modules["sakura_simulator.compiler"] = mock_compiler_mod
+
+    def teardown_method(self):
+        sys.modules.pop("sakura_simulator.registry", None)
+        sys.modules.pop("sakura_simulator.compiler", None)
+
+    def test_given_manifest_not_found_when_compile_invoked_then_exits_with_code_1(self):
+        # Given: registry constructor raises FileNotFoundError
+        sys.modules["sakura_simulator.registry"].ModelRegistry.side_effect = FileNotFoundError(
+            "manifest missing"
+        )
+        # When: models compile is invoked
+        result = runner.invoke(app, ["models", "compile", "resnet50"])
+        # Then: exits with code 1 and error in output
+        assert result.exit_code == 1
+        assert "Error" in result.output
+
+    def test_given_model_not_found_when_compile_invoked_then_exits_with_code_1(self):
+        # Given: registry returns None for the requested model
+        self.mock_registry.get_model.return_value = None
+        # When: models compile ghost_model is invoked
+        result = runner.invoke(app, ["models", "compile", "ghost_model"])
+        # Then: exits with code 1 and error in output
+        assert result.exit_code == 1
+        assert "Error" in result.output
+
+    def test_given_compile_raises_value_error_when_invoked_then_exits_with_code_1(self):
+        # Given: compiler raises ValueError (unsupported format, missing file, etc.)
+        self.mock_compiler.compile.side_effect = ValueError("Unsupported format 'tflite'")
+        # When: models compile resnet50 is invoked
+        result = runner.invoke(app, ["models", "compile", "resnet50"])
+        # Then: exits with code 1 and error in output
+        assert result.exit_code == 1
+        assert "Error" in result.output
+
+    def test_given_valid_model_when_compile_invoked_then_shows_artifact_path_and_exits_0(self):
+        # Given: compiler succeeds and returns the artifact path
+        from pathlib import Path
+
+        self.mock_compiler.compile.return_value = Path("/tmp/artifacts/resnet50")
+        # When: models compile resnet50 is invoked
+        result = runner.invoke(app, ["models", "compile", "resnet50"])
+        # Then: exits successfully and shows the compiled path
+        assert result.exit_code == 0
+        assert "Compiled:" in result.output
+
+
+class TestModelsRunCommand:
+    def setup_method(self):
+        mock_reg_mod = MagicMock()
+        self.mock_registry = MagicMock()
+        mock_reg_mod.ModelRegistry.return_value = self.mock_registry
+        sys.modules["sakura_simulator.registry"] = mock_reg_mod
+
+        mock_runtime_mod = MagicMock()
+        self.mock_runtime = MagicMock()
+        mock_runtime_mod.MeraRuntime.return_value = self.mock_runtime
+        sys.modules["sakura_simulator.runtime"] = mock_runtime_mod
+
+    def teardown_method(self):
+        sys.modules.pop("sakura_simulator.registry", None)
+        sys.modules.pop("sakura_simulator.runtime", None)
+
+    def _configure_success_result(self):
+        mock_result = MagicMock()
+        mock_result.avg_latency_ms = 5.0
+        mock_result.min_latency_ms = 4.0
+        mock_result.p95_latency_ms = 5.5
+        mock_result.outputs = [{"name": "output0", "shape": [1, 1000], "dtype": "float32"}]
+        self.mock_runtime.run.return_value = mock_result
+
+    def test_given_manifest_not_found_when_run_invoked_then_exits_with_code_1(self):
+        # Given: registry constructor raises FileNotFoundError
+        sys.modules["sakura_simulator.registry"].ModelRegistry.side_effect = FileNotFoundError(
+            "manifest missing"
+        )
+        # When: models run is invoked
+        result = runner.invoke(app, ["models", "run", "resnet50"])
+        # Then: exits with code 1
+        assert result.exit_code == 1
+
+    def test_given_model_not_found_when_run_invoked_then_exits_with_code_1(self):
+        # Given: registry returns None for the requested model
+        self.mock_registry.get_model.return_value = None
+        # When: models run ghost_model is invoked
+        result = runner.invoke(app, ["models", "run", "ghost_model"])
+        # Then: exits with code 1 and error in output
+        assert result.exit_code == 1
+        assert "Error" in result.output
+
+    def test_given_model_not_compiled_when_run_invoked_then_shows_hint_and_exits_1(self):
+        # Given: model exists but is not compiled
+        self.mock_registry.is_compiled.return_value = False
+        # When: models run resnet50 is invoked
+        result = runner.invoke(app, ["models", "run", "resnet50"])
+        # Then: exits with code 1 and hint about compile command
+        assert result.exit_code == 1
+        assert "not compiled" in result.output
+
+    def test_given_run_raises_value_error_when_invoked_then_exits_with_code_1(self):
+        # Given: model is compiled but runtime raises ValueError
+        self.mock_registry.is_compiled.return_value = True
+        self.mock_runtime.run.side_effect = ValueError("no inputs configured")
+        # When: models run resnet50 is invoked
+        result = runner.invoke(app, ["models", "run", "resnet50"])
+        # Then: exits with code 1
+        assert result.exit_code == 1
+
+    def test_given_valid_compiled_model_when_run_invoked_then_shows_latency_and_exits_0(self):
+        # Given: model is compiled and runtime returns a successful result
+        self.mock_registry.is_compiled.return_value = True
+        self._configure_success_result()
+        # When: models run resnet50 is invoked
+        result = runner.invoke(app, ["models", "run", "resnet50"])
+        # Then: exits successfully and shows latency + output info
+        assert result.exit_code == 0
+        assert "Avg latency" in result.output
+        assert "Output:" in result.output
+
+    def test_given_valid_model_when_run_invoked_with_iters_5_then_runtime_called_with_iters_5(self):
+        # Given: model is compiled and runtime returns a successful result
+        self.mock_registry.is_compiled.return_value = True
+        self._configure_success_result()
+        # When: models run resnet50 --iters 5 is invoked
+        result = runner.invoke(app, ["models", "run", "resnet50", "--iters", "5"])
+        # Then: exits successfully and runtime was called with iters=5
+        assert result.exit_code == 0
+        self.mock_runtime.run.assert_called_once()
+        call_kwargs = self.mock_runtime.run.call_args[1]
+        assert call_kwargs["iters"] == 5

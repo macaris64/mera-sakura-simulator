@@ -1,5 +1,6 @@
 """BDD tests for SakuraEngine."""
 
+import sys
 from unittest.mock import MagicMock
 
 import mera
@@ -82,3 +83,39 @@ class TestSakuraEngineLoadModel:
         assert "[SIMULATOR]" in result
         assert "mobilenet_v2" in result
         assert "staged for NPU activation" in result
+
+
+class TestSakuraEngineOrchestration:
+    def setup_method(self):
+        mock_compiler_mod = MagicMock()
+        self.mock_compiler = MagicMock()
+        mock_compiler_mod.MeraCompiler.return_value = self.mock_compiler
+        sys.modules["sakura_simulator.compiler"] = mock_compiler_mod
+
+        mock_runtime_mod = MagicMock()
+        self.mock_runtime = MagicMock()
+        mock_runtime_mod.MeraRuntime.return_value = self.mock_runtime
+        sys.modules["sakura_simulator.runtime"] = mock_runtime_mod
+
+    def teardown_method(self):
+        sys.modules.pop("sakura_simulator.compiler", None)
+        sys.modules.pop("sakura_simulator.runtime", None)
+
+    def test_given_valid_entry_when_compile_model_called_then_delegates_to_mera_compiler(self):
+        # Given: a SakuraEngine and a model entry
+        engine = SakuraEngine()
+        entry = MagicMock()
+        # When: compile_model is called
+        engine.compile_model(entry)
+        # Then: MeraCompiler.compile was called with the entry
+        self.mock_compiler.compile.assert_called_once_with(entry)
+
+    def test_given_valid_entry_when_run_model_called_then_delegates_to_mera_runtime(self):
+        # Given: a SakuraEngine and a model entry with an artifact_dir
+        engine = SakuraEngine()
+        entry = MagicMock()
+        entry.artifact_dir = "/tmp/artifacts/resnet50"
+        # When: run_model is called
+        engine.run_model(entry)
+        # Then: MeraRuntime.run was called with the entry
+        self.mock_runtime.run.assert_called_once()

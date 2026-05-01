@@ -77,6 +77,60 @@ def models_remove(
     typer.echo(f"Removed: {path}")
 
 
+@models_app.command("compile")
+def models_compile(
+    name: str = typer.Argument(..., help="Model name to compile"),
+    manifest: str = typer.Option("configs/models.yaml", "--manifest", help="Path to manifest YAML"),
+):
+    """Compile a source model to SAKURA-II deployment artifacts."""
+    from sakura_simulator.compiler import MeraCompiler
+    from sakura_simulator.registry import ModelRegistry
+
+    try:
+        registry = ModelRegistry(manifest)
+        entry = registry.get_model(name)
+        if entry is None:
+            typer.echo(f"Error: Model not found: {name}", err=True)
+            raise typer.Exit(1)
+        artifact_path = MeraCompiler().compile(entry)
+        typer.echo(f"Compiled: {artifact_path}")
+    except (FileNotFoundError, ValueError) as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(1)
+
+
+@models_app.command("run")
+def models_run(
+    name: str = typer.Argument(..., help="Model name to run inference on"),
+    iters: int = typer.Option(1, "--iters", help="Number of inference iterations"),
+    manifest: str = typer.Option("configs/models.yaml", "--manifest", help="Path to manifest YAML"),
+):
+    """Run inference using compiled SAKURA-II artifacts."""
+    from sakura_simulator.registry import ModelRegistry
+    from sakura_simulator.runtime import MeraRuntime
+
+    try:
+        registry = ModelRegistry(manifest)
+        entry = registry.get_model(name)
+        if entry is None:
+            typer.echo(f"Error: Model not found: {name}", err=True)
+            raise typer.Exit(1)
+        if not registry.is_compiled(entry):
+            typer.echo(
+                f"Error: '{name}' is not compiled. Run: sakura models compile {name}", err=True
+            )
+            raise typer.Exit(1)
+        result = MeraRuntime().run(entry, entry.artifact_dir, iters=iters)
+        typer.echo(f"Avg latency: {result.avg_latency_ms:.2f} ms")
+        typer.echo(f"Min latency: {result.min_latency_ms:.2f} ms")
+        typer.echo(f"P95 latency: {result.p95_latency_ms:.2f} ms")
+        for out in result.outputs:
+            typer.echo(f"Output: {out['name']} shape={out['shape']} dtype={out['dtype']}")
+    except (FileNotFoundError, ValueError) as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(1)
+
+
 @models_app.command("inspect")
 def models_inspect(
     name: str = typer.Argument(..., help="Model name to inspect"),

@@ -25,6 +25,26 @@ def _render_model_control_center() -> None:
             ready = registry.is_space_ready(entry)
             indicator = ":green_circle:" if ready else ":red_circle:"
             st.sidebar.markdown(f"{indicator} {entry.name} v{entry.version}")
+            compiled = registry.is_compiled(entry)
+            compiled_indicator = ":green_circle:" if compiled else ":red_circle:"
+            st.sidebar.markdown(f"{compiled_indicator} {entry.name} compiled")
+            col1, col2 = st.sidebar.columns(2)
+            if col1.button(f"Compile {entry.name}"):
+                from sakura_simulator.compiler import MeraCompiler
+
+                try:
+                    path = MeraCompiler().compile(entry)
+                    st.sidebar.success(f"Compiled: {path}")
+                except (ValueError, FileNotFoundError) as exc:
+                    st.sidebar.error(f"Compile failed: {exc}")
+            if col2.button(f"Run {entry.name}"):
+                from sakura_simulator.runtime import MeraRuntime
+
+                try:
+                    result = MeraRuntime().run(entry, entry.artifact_dir)
+                    st.sidebar.info(f"Avg: {result.avg_latency_ms:.2f} ms")
+                except (ValueError, FileNotFoundError) as exc:
+                    st.sidebar.error(f"Run failed: {exc}")
     except FileNotFoundError:
         st.sidebar.warning("No model manifest found.")
 
