@@ -10,3 +10,4 @@ models/*.onnx
 models/*.mera
 artifacts/
 tokenizers/
+.pkl_memoize_py3
