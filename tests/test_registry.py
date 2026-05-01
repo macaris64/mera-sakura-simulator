@@ -9,7 +9,154 @@ import pytest
 import yaml
 from pydantic import ValidationError
 
-from sakura_simulator.registry import ModelEntry, ModelManifest, ModelRegistry, NPUConstraints
+from sakura_simulator.registry import (
+    ModelEntry,
+    ModelInput,
+    ModelManifest,
+    ModelRegistry,
+    NPUConstraints,
+)
+
+
+class TestModelInputModel:
+    def test_given_all_fields_when_constructed_then_stores_values(self):
+        # Given: all fields for a model input
+        # When: ModelInput is created
+        inp = ModelInput(name="data", dtype="float32", shape=[1, 3, 224, 224])
+        # Then: all fields are stored
+        assert inp.name == "data"
+        assert inp.dtype == "float32"
+        assert inp.shape == [1, 3, 224, 224]
+
+    def test_given_no_name_when_constructed_then_name_is_none(self):
+        # Given: name is omitted
+        # When: ModelInput is created without a name
+        inp = ModelInput(dtype="float32", shape=[1])
+        # Then: name defaults to None
+        assert inp.name is None
+
+    def test_given_missing_dtype_when_constructed_then_raises_validation_error(self):
+        # Given: dtype is omitted (required field)
+        # When / Then: ValidationError is raised
+        with pytest.raises(ValidationError):
+            ModelInput(shape=[1, 3, 224, 224])  # type: ignore[call-arg]
+
+    def test_given_missing_shape_when_constructed_then_raises_validation_error(self):
+        # Given: shape is omitted (required field)
+        # When / Then: ValidationError is raised
+        with pytest.raises(ValidationError):
+            ModelInput(dtype="float32")  # type: ignore[call-arg]
+
+
+class TestModelEntryExtended:
+    def _make_constraints(self) -> NPUConstraints:
+        return NPUConstraints(max_power_watts=10.0, required_memory_mb=256)
+
+    def test_given_no_optional_fields_when_constructed_then_defaults_are_none(self):
+        # Given: only required fields (backward-compat check)
+        # When: ModelEntry is created without new optional fields
+        entry = ModelEntry(
+            name="m1",
+            version="1.0",
+            path="models/m1.onnx",
+            checksum="abc",
+            npu_constraints=self._make_constraints(),
+        )
+        # Then: new optional fields default to None
+        assert entry.format is None
+        assert entry.artifact_dir is None
+        assert entry.inputs is None
+
+    def test_given_format_and_artifact_dir_when_constructed_then_fields_stored(self):
+        # Given: format and artifact_dir provided
+        # When: ModelEntry is created with those fields
+        entry = ModelEntry(
+            name="m1",
+            version="1.0",
+            path="models/m1.onnx",
+            checksum="abc",
+            format="onnx",
+            artifact_dir="artifacts/m1/1.0",
+            npu_constraints=self._make_constraints(),
+        )
+        # Then: both fields are stored
+        assert entry.format == "onnx"
+        assert entry.artifact_dir == "artifacts/m1/1.0"
+
+    def test_given_inputs_list_when_constructed_then_inputs_parsed(self):
+        # Given: inputs list with one tensor spec
+        # When: ModelEntry is created with inputs
+        entry = ModelEntry(
+            name="m1",
+            version="1.0",
+            path="models/m1.onnx",
+            checksum="abc",
+            inputs=[{"name": "data", "dtype": "float32", "shape": [1, 3, 224, 224]}],
+            npu_constraints=self._make_constraints(),
+        )
+        # Then: inputs are parsed into ModelInput objects
+        assert entry.inputs is not None
+        assert len(entry.inputs) == 1
+        assert entry.inputs[0].name == "data"
+        assert entry.inputs[0].dtype == "float32"
+        assert entry.inputs[0].shape == [1, 3, 224, 224]
+
+
+class TestModelRegistryIsCompiled:
+    def setup_method(self):
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self.tmpdir = Path(self._tmpdir.name)
+        manifest_path = self.tmpdir / "models.yaml"
+        manifest_path.write_text(
+            yaml.dump(
+                {
+                    "models": [
+                        {
+                            "name": "m1",
+                            "version": "1.0",
+                            "path": str(self.tmpdir / "m1.onnx"),
+                            "checksum": "abc",
+                            "npu_constraints": {"max_power_watts": 5.0, "required_memory_mb": 128},
+                        }
+                    ]
+                }
+            )
+        )
+        self.registry = ModelRegistry(manifest_path)
+
+    def teardown_method(self):
+        self._tmpdir.cleanup()
+
+    def test_given_artifact_dir_none_when_is_compiled_then_returns_false(self):
+        # Given: entry with no artifact_dir configured
+        entry = self.registry.get_model("m1")
+        assert entry is not None
+        # When: is_compiled is called
+        result = self.registry.is_compiled(entry)
+        # Then: False (nothing to compile to)
+        assert result is False
+
+    def test_given_artifact_dir_not_on_disk_when_is_compiled_then_returns_false(self):
+        # Given: entry with artifact_dir pointing to a non-existent directory
+        entry = self.registry.get_model("m1")
+        assert entry is not None
+        entry = entry.model_copy(update={"artifact_dir": str(self.tmpdir / "nonexistent")})
+        # When: is_compiled is called
+        result = self.registry.is_compiled(entry)
+        # Then: False (directory does not exist)
+        assert result is False
+
+    def test_given_artifact_dir_exists_on_disk_when_is_compiled_then_returns_true(self):
+        # Given: entry with artifact_dir pointing to an existing directory
+        artifact_path = self.tmpdir / "artifacts" / "m1"
+        artifact_path.mkdir(parents=True)
+        entry = self.registry.get_model("m1")
+        assert entry is not None
+        entry = entry.model_copy(update={"artifact_dir": str(artifact_path)})
+        # When: is_compiled is called
+        result = self.registry.is_compiled(entry)
+        # Then: True (compiled artifacts are present)
+        assert result is True
 
 
 class TestNPUConstraintsModel:

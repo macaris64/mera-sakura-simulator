@@ -60,6 +60,13 @@ class TestModelControlCenter:
         self.st.reset_mock()
         self.st.cache_resource.side_effect = lambda fn: fn
 
+        # Provide a proper 2-tuple for st.sidebar.columns so col1, col2 unpacks cleanly
+        self.mock_col1 = MagicMock()
+        self.mock_col2 = MagicMock()
+        self.mock_col1.button.return_value = False
+        self.mock_col2.button.return_value = False
+        self.st.sidebar.columns.return_value = (self.mock_col1, self.mock_col2)
+
         self.mock_registry_cls = MagicMock()
         self.mock_registry = MagicMock()
         self.mock_registry_cls.return_value = self.mock_registry
@@ -70,6 +77,7 @@ class TestModelControlCenter:
         m2.name = "mobilenet_v2"
         self.mock_registry.list_models.return_value = [m1, m2]
         self.mock_registry.is_space_ready.return_value = True
+        self.mock_registry.is_compiled.return_value = True
 
         mock_module = MagicMock()
         mock_module.ModelRegistry = self.mock_registry_cls
@@ -131,3 +139,107 @@ class TestModelControlCenter:
         # Then: selectbox is called with empty list, no indicator markdown rendered
         self.st.sidebar.selectbox.assert_called_once_with("Active Model", [])
         self.st.sidebar.markdown.assert_not_called()
+
+
+class TestModelControlCenterCompileRun:
+    def setup_method(self):
+        """Reset mocks and inject registry, compiler, and runtime stubs."""
+        self.st = sys.modules["streamlit"]
+        self.st.reset_mock()
+        self.st.cache_resource.side_effect = lambda fn: fn
+        self.st.button.return_value = False
+
+        self.mock_col1 = MagicMock()
+        self.mock_col2 = MagicMock()
+        self.mock_col1.button.return_value = False
+        self.mock_col2.button.return_value = False
+        self.st.sidebar.columns.return_value = (self.mock_col1, self.mock_col2)
+
+        # Registry stub with one model
+        self.mock_registry = MagicMock()
+        self.entry = MagicMock()
+        self.entry.name = "resnet50"
+        self.entry.version = "2.7.0"
+        self.entry.artifact_dir = "artifacts/resnet50/2.7.0"
+        self.mock_registry.list_models.return_value = [self.entry]
+        self.mock_registry.is_space_ready.return_value = True
+        self.mock_registry.is_compiled.return_value = True
+
+        mock_reg_mod = MagicMock()
+        mock_reg_mod.ModelRegistry.return_value = self.mock_registry
+        sys.modules["sakura_simulator.registry"] = mock_reg_mod
+
+        # Compiler stub
+        self.mock_compiler = MagicMock()
+        mock_compiler_mod = MagicMock()
+        mock_compiler_mod.MeraCompiler.return_value = self.mock_compiler
+        sys.modules["sakura_simulator.compiler"] = mock_compiler_mod
+
+        # Runtime stub
+        self.mock_runtime = MagicMock()
+        mock_runtime_mod = MagicMock()
+        mock_runtime_mod.MeraRuntime.return_value = self.mock_runtime
+        sys.modules["sakura_simulator.runtime"] = mock_runtime_mod
+
+    def teardown_method(self):
+        sys.modules.pop("sakura_simulator.registry", None)
+        sys.modules.pop("sakura_simulator.compiler", None)
+        sys.modules.pop("sakura_simulator.runtime", None)
+
+    def test_given_compiled_model_when_rendered_then_shows_green_compiled_indicator(self):
+        # Given: is_compiled returns True
+        self.mock_registry.is_compiled.return_value = True
+        # When: main() renders the page
+        app_module.main()
+        # Then: at least one green compiled indicator appears in sidebar markdown
+        markdown_calls = [str(c) for c in self.st.sidebar.markdown.call_args_list]
+        assert any(":green_circle:" in c and "compiled" in c for c in markdown_calls)
+
+    def test_given_not_compiled_model_when_rendered_then_shows_red_compiled_indicator(self):
+        # Given: is_compiled returns False
+        self.mock_registry.is_compiled.return_value = False
+        # When: main() renders the page
+        app_module.main()
+        # Then: at least one red compiled indicator appears in sidebar markdown
+        markdown_calls = [str(c) for c in self.st.sidebar.markdown.call_args_list]
+        assert any(":red_circle:" in c and "compiled" in c for c in markdown_calls)
+
+    def test_given_compile_button_clicked_when_compile_succeeds_then_shows_success(self):
+        # Given: compile button is clicked and compiler succeeds
+        from pathlib import Path
+
+        self.mock_col1.button.return_value = True
+        self.mock_compiler.compile.return_value = Path("/tmp/artifacts/resnet50")
+        # When: main() renders the page
+        app_module.main()
+        # Then: success message is shown in sidebar
+        self.st.sidebar.success.assert_called_once()
+
+    def test_given_compile_button_clicked_when_compile_fails_then_shows_error(self):
+        # Given: compile button is clicked and compiler raises ValueError
+        self.mock_col1.button.return_value = True
+        self.mock_compiler.compile.side_effect = ValueError("Source model not found")
+        # When: main() renders the page
+        app_module.main()
+        # Then: error message is shown in sidebar
+        self.st.sidebar.error.assert_called()
+
+    def test_given_run_button_clicked_when_run_succeeds_then_shows_latency_info(self):
+        # Given: run button is clicked and runtime returns a successful result
+        self.mock_col2.button.return_value = True
+        mock_result = MagicMock()
+        mock_result.avg_latency_ms = 3.5
+        self.mock_runtime.run.return_value = mock_result
+        # When: main() renders the page
+        app_module.main()
+        # Then: info message with latency is shown in sidebar
+        self.st.sidebar.info.assert_called_once()
+
+    def test_given_run_button_clicked_when_run_fails_then_shows_error(self):
+        # Given: run button is clicked and runtime raises ValueError
+        self.mock_col2.button.return_value = True
+        self.mock_runtime.run.side_effect = ValueError("Artifact directory not found")
+        # When: main() renders the page
+        app_module.main()
+        # Then: error message is shown in sidebar
+        self.st.sidebar.error.assert_called()

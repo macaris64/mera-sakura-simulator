@@ -9,7 +9,7 @@ A **Hello World simulator** for the [EdgeCortix SAKURA-II NPU](https://www.edgec
 ## Features
 
 - `SakuraEngine` — wraps [`mera.Target`](https://github.com/Edgecortix-Inc/mera) and `mera.Platform` for SAKURA-II NPU initialization
-- **CLI** via [Typer](https://typer.tiangolo.com/): `sakura hello`, `sakura models list/inspect/download/remove`
+- **CLI** via [Typer](https://typer.tiangolo.com/): `sakura hello`, `sakura models list/inspect/download/remove/compile/run`
 - **Model Registry**: YAML-driven manifest with Pydantic schema validation, SHA-256 integrity checking, HTTP download via httpx, and disk-level remove
 - **Web UI** via [Streamlit](https://streamlit.io/): activate the engine and manage models from a browser
 - **100% branch coverage** enforced by pytest-cov on every commit
@@ -61,6 +61,12 @@ poetry run sakura models download resnet50
 
 # Remove a downloaded model file from disk
 poetry run sakura models remove resnet50
+
+# Compile a model into MERA deployment artifacts (writes under artifacts/<name>/<ver>/build/<Target>/result/)
+poetry run sakura models compile mobilenet_v2
+
+# Run inference from compiled artifacts (Simulator uses TVM graph executor; non-Simulator uses MERA runner)
+poetry run sakura models run mobilenet_v2 --iters 1
 ```
 
 ### Web UI
@@ -94,9 +100,11 @@ Run `poetry run pytest` to reproduce. HTML report: `open htmlcov/index.html`.
 ```
 src/sakura_simulator/
     engine.py        SakuraEngine — wraps mera.Target, owns the greeting constant
-    cli.py           Typer CLI (hello, models list/inspect/download/remove)
+    cli.py           Typer CLI (hello, models list/inspect/download/remove/compile/run)
     app.py           Streamlit UI page + Model Control Center sidebar
+    compiler.py      MeraCompiler — compile models into deployment artifacts
     registry.py      ModelRegistry — YAML loader, Pydantic validation, SHA-256, download, remove
+    runtime.py       MeraRuntime — run inference from compiled artifacts (Simulator-safe path)
     __init__.py      Package init, re-exports SakuraEngine
 
 configs/
@@ -146,6 +154,8 @@ poetry run pytest          # must show 100%
 | `poetry run sakura models inspect <name>` | Show NPU constraints for a model |
 | `poetry run sakura models download <name>` | Download model + verify SHA-256 |
 | `poetry run sakura models remove <name>` | Remove downloaded model from disk |
+| `poetry run sakura models compile <name>` | Compile model into deployment artifacts |
+| `poetry run sakura models run <name> --iters 1` | Run inference from compiled artifacts |
 | `poetry run streamlit run src/sakura_simulator/app.py` | Launch UI |
 
 ---

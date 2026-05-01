@@ -1,5 +1,7 @@
 """SakuraEngine: wraps the MERA NPU target and platform for SAKURA-II."""
 
+from pathlib import Path
+
 import mera
 
 GREETING = "Hello from Sakura-II: Titan Biosignature Engine Active"
@@ -34,3 +36,15 @@ class SakuraEngine:
             return f"[NPU] Model {entry.name} loaded on {self._platform}"
         except AttributeError:
             return f"[SIMULATOR] Model {entry.name} staged for NPU activation"
+
+    def compile_model(self, entry) -> Path:
+        """Compile a source model to deployment artifacts via MeraCompiler."""
+        from sakura_simulator.compiler import MeraCompiler
+
+        return MeraCompiler(self._target, self._platform).compile(entry)
+
+    def run_model(self, entry, *, iters: int = 1):
+        """Run inference on compiled artifacts via MeraRuntime."""
+        from sakura_simulator.runtime import MeraRuntime
+
+        return MeraRuntime(target=self._target).run(entry, entry.artifact_dir, iters=iters)

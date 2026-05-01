@@ -13,12 +13,21 @@ class NPUConstraints(BaseModel):
     required_memory_mb: int
 
 
+class ModelInput(BaseModel):
+    name: str | None = None
+    dtype: str
+    shape: list[int]
+
+
 class ModelEntry(BaseModel):
     name: str
     version: str
     path: str
     checksum: str
     source_url: str | None = None
+    format: str | None = None
+    artifact_dir: str | None = None
+    inputs: list[ModelInput] | None = None
     npu_constraints: NPUConstraints
 
 
@@ -55,6 +64,12 @@ class ModelRegistry:
             return False
         actual = hashlib.sha256(model_path.read_bytes()).hexdigest()
         return actual == entry.checksum
+
+    def is_compiled(self, entry: ModelEntry) -> bool:
+        """Return True iff artifact_dir is configured and exists on disk."""
+        if entry.artifact_dir is None:
+            return False
+        return Path(entry.artifact_dir).exists()
 
     def download(self, name: str) -> Path:
         """Download a model file and verify its SHA-256 checksum immediately after write.
