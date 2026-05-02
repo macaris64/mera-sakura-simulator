@@ -206,6 +206,42 @@ class TestModelsCompileCommand:
         assert result.exit_code == 0
         assert "Compiled:" in result.output
 
+    def test_given_kv_cache_model_with_decode_path_when_compile_invoked_then_compiles_both_models(self):
+        # Given: KV cache model entry with kv_decode_path set
+        from pathlib import Path
+        from unittest.mock import MagicMock
+
+        entry = MagicMock()
+        entry.use_kv_cache = True
+        entry.kv_decode_path = "models/distilgpt2-kvcache-decode.onnx"
+        entry.kv_decode_artifact_dir = "artifacts/distilgpt2-kvcache/decode"
+        entry.name = "distilgpt2-kvcache"
+        self.mock_registry.get_model.return_value = entry
+        self.mock_compiler.compile.return_value = Path("/tmp/artifacts/distilgpt2-kvcache/prefill")
+        # When: models compile distilgpt2-kvcache is invoked
+        result = runner.invoke(app, ["models", "compile", "distilgpt2-kvcache"])
+        # Then: compiler called twice (prefill + decode) and both paths shown
+        assert result.exit_code == 0
+        assert self.mock_compiler.compile.call_count == 2
+        assert "Compiled KV decode:" in result.output
+
+    def test_given_kv_cache_model_without_decode_path_when_compile_invoked_then_compiles_only_prefill(self):
+        # Given: KV cache model entry with kv_decode_path not yet set
+        from pathlib import Path
+
+        entry = MagicMock()
+        entry.use_kv_cache = True
+        entry.kv_decode_path = None
+        entry.name = "distilgpt2-kvcache"
+        self.mock_registry.get_model.return_value = entry
+        self.mock_compiler.compile.return_value = Path("/tmp/artifacts/distilgpt2-kvcache/prefill")
+        # When: models compile distilgpt2-kvcache is invoked
+        result = runner.invoke(app, ["models", "compile", "distilgpt2-kvcache"])
+        # Then: compiler called once (prefill only); no KV decode line
+        assert result.exit_code == 0
+        assert self.mock_compiler.compile.call_count == 1
+        assert "Compiled KV decode:" not in result.output
+
 
 class TestModelsInferCommand:
     def setup_method(self):

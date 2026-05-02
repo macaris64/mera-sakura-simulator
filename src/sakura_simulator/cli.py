@@ -94,6 +94,14 @@ def models_compile(
             raise typer.Exit(1)
         artifact_path = MeraCompiler().compile(entry)
         typer.echo(f"Compiled: {artifact_path}")
+        if entry.use_kv_cache and entry.kv_decode_path is not None:
+            decode_entry = entry.model_copy(update={
+                "path": entry.kv_decode_path,
+                "artifact_dir": entry.kv_decode_artifact_dir,
+                "name": f"{entry.name}_decode",
+            })
+            decode_path = MeraCompiler().compile(decode_entry)
+            typer.echo(f"Compiled KV decode: {decode_path}")
     except (FileNotFoundError, ValueError) as exc:
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(1)

@@ -4,7 +4,6 @@
       "Bash(poetry run pytest*)",
       "Bash(poetry run python*)",
       "Bash(poetry run sakura*)",
-      "Bash(poetry run streamlit*)",
       "Bash(poetry install*)",
       "Bash(poetry add*)",
       "Bash(poetry build*)",

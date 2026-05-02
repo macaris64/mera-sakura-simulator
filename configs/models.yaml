@@ -63,3 +63,55 @@ models:
   path: models/smollm2-135m-instruct.onnx
   tokenizer_path: tokenizers/smollm2-135m-instruct
   version: 1.0.0
+- artifact_dir: artifacts/distilgpt2-kvcache/prefill
+  checksum: 49b71b7f56100def5f7733aa73c703a337eed7510cb1dfde91cbed4f333ced46
+  context_length: 512
+  format: onnx
+  inputs:
+  - dtype: int64
+    name: input_ids
+    shape:
+    - 1
+    - 512
+  - dtype: int64
+    name: attention_mask
+    shape:
+    - 1
+    - 512
+  kv_decode_artifact_dir: artifacts/distilgpt2-kvcache/decode
+  kv_decode_path: models/distilgpt2-kvcache-decode.onnx
+  model_type: llm
+  name: distilgpt2-kvcache
+  npu_constraints:
+    max_power_watts: 15.0
+    required_memory_mb: 768
+  path: models/distilgpt2-kvcache-prefill.onnx
+  tokenizer_path: tokenizers/distilgpt2
+  use_kv_cache: true
+  version: 1.0.0
+- artifact_dir: artifacts/smollm2-135m-instruct-kvcache/prefill
+  checksum: 5ff1182aed4d4547554399d59e446e7b2daab74fd92cb570ae1fd36a889ed6a9
+  context_length: 512
+  format: onnx
+  inputs:
+  - dtype: int64
+    name: input_ids
+    shape:
+    - 1
+    - 512
+  - dtype: int64
+    name: attention_mask
+    shape:
+    - 1
+    - 512
+  kv_decode_artifact_dir: artifacts/smollm2-135m-instruct-kvcache/decode
+  kv_decode_path: models/smollm2-135m-instruct-kvcache-decode.onnx
+  model_type: llm
+  name: smollm2-135m-instruct-kvcache
+  npu_constraints:
+    max_power_watts: 15.0
+    required_memory_mb: 768
+  path: models/smollm2-135m-instruct-kvcache-prefill.onnx
+  tokenizer_path: tokenizers/smollm2-135m-instruct
+  use_kv_cache: true
+  version: 1.0.0

@@ -9,7 +9,6 @@ packages = [{include = "sakura_simulator", from = "src"}]
 [tool.poetry.dependencies]
 python = "^3.10"
 typer = {version = ">=0.25.1", extras = ["all"]}
-streamlit = "^1.35"
 mera = {version = ">=1.6.0.post1", extras = ["full"]}
 pydantic = "^2.13.3"
 pyyaml = "^6.0.3"
@@ -38,7 +37,6 @@ build-backend = "poetry.core.masonry.api"
 testpaths = [
     "tests/test_engine.py",
     "tests/test_cli.py",
-    "tests/test_app.py",
     "tests/test_registry.py",
     "tests/test_smoke.py",
     "tests/test_compiler.py",

@@ -40,7 +40,6 @@ poetry run pytest       # must show 100% coverage, all 35 tests PASSED
 | `poetry run sakura models list` | List all registered models with Space-Ready status |
 | `poetry run sakura models inspect <name>` | Show NPU constraints for a specific model |
 | `poetry run sakura --help` | Show CLI help |
-| `poetry run streamlit run src/sakura_simulator/app.py` | Launch web UI (http://localhost:8501) |
 | `poetry add <pkg>` | Add a runtime dependency |
 | `poetry add --group dev <pkg>` | Add a dev-only dependency |
 | `poetry shell` | Activate the .venv in current shell |
@@ -57,22 +56,20 @@ src/sakura_simulator/       Main package (Poetry src layout)
     __init__.py             Exports SakuraEngine, __version__
     engine.py               SakuraEngine — wraps mera.Target, owns GREETING constant
     cli.py                  Typer CLI — callback() + hello() + models subgroup
-    app.py                  Streamlit UI — main() + _get_engine() + Model Control Center
     registry.py             ModelRegistry — YAML manifest loader, Pydantic validation, SHA-256 integrity
 configs/
     models.yaml             Model manifest — defines name, version, path, checksum, npu_constraints
 tests/
-    conftest.py             sys.modules mock injection (mera + streamlit)
+    conftest.py             sys.modules mock injection (mera) + Typer/Click compat patch
     test_engine.py          BDD tests for SakuraEngine (6 tests)
     test_cli.py             BDD tests for CLI (6 tests)
-    test_app.py             BDD tests for Streamlit page (10 tests)
     test_registry.py        BDD tests for ModelRegistry (13 tests)
 .githooks/
     pre-commit              Blocks git commit if pytest fails
 .claude/
     settings.json           Permissions + PreToolUse hook for commit gating
     AGENTS.md               Agent instructions for TDD workflow
-    commands/               Custom slash commands (/test, /run-cli, /run-ui)
+    commands/               Custom slash commands (/test, /run-cli)
 .claude_plugin/
     plugin.json             Manifest: get_npu_status + get_telemetry tools
     telemetry.py            Simulated NPU telemetry data model
@@ -95,12 +92,6 @@ hand-crafted `ModuleType("mera")` with a `_MockTarget` class into `sys.modules`
 before pytest collects any test modules. This allows `import mera` in `engine.py`
 to succeed without the real EdgeCortix SDK.
 
-`streamlit` is mocked similarly via `MagicMock`. Critical detail:
-`st.cache_resource.side_effect = lambda fn: fn` makes it a pass-through decorator.
-Without this, `@st.cache_resource` would replace `_get_engine` with a `MagicMock`,
-breaking the button-click branch test. After any `st.reset_mock()` call in tests,
-you must re-apply this `side_effect`.
-
 ### Model Registry
 
 `configs/models.yaml` defines all quantized SLMs available to SAKURA-II. The registry
@@ -118,7 +109,7 @@ provides Pydantic schema validation and SHA-256 file integrity checking ("bit-fl
 - `.get_model(name)` → `ModelEntry | None`
 - `.is_space_ready(entry)` → `bool` (file exists AND sha256 matches manifest)
 
-**Mock strategy for CLI/app tests**: CLI and app functions import `ModelRegistry` lazily
+**Mock strategy for CLI tests**: CLI functions import `ModelRegistry` lazily
 (`from sakura_simulator.registry import ModelRegistry` inside function body). Tests inject a
 `MagicMock` module into `sys.modules["sakura_simulator.registry"]` in `setup_method` so
 the lazy import picks up the mock at call time.

@@ -240,6 +240,18 @@ class MeraRuntime:
         artifact_path = Path(artifact_dir)
         if not artifact_path.exists():
             raise ValueError(f"Artifact directory not found: {artifact_path}")
+        if entry.use_kv_cache and entry.kv_decode_artifact_dir is None:
+            raise ValueError(
+                f"Model '{entry.name}' has use_kv_cache=True but no kv_decode_artifact_dir configured."
+            )
+        if entry.use_kv_cache:
+            return self._infer_with_kv_cache(
+                entry,
+                artifact_path,
+                prompt,
+                max_new_tokens=max_new_tokens,
+                temperature=temperature,
+            )
 
         import numpy as np
 
@@ -297,6 +309,96 @@ class MeraRuntime:
                 )
         latency_ms = (time.perf_counter() - t0) * 1000
 
+        generated_ids = np.array(generated, dtype=np.int64).reshape(1, -1)
+        text = tokenizer.decode(generated_ids)
+        return InferResult(text=text, token_ids=generated, latency_ms=latency_ms)
+
+    def _infer_with_kv_cache(
+        self,
+        entry: ModelEntry,
+        artifact_path: Path,
+        prompt: str,
+        *,
+        max_new_tokens: int,
+        temperature: float,
+    ) -> InferResult:
+        """KV-cache autoregressive decode: one prefill pass then single-token decode steps.
+
+        All shapes are fully static (required by the MERA/TVM compiler):
+          Prefill inputs:  {input_ids [1, ctx], attention_mask [1, ctx]}
+          Prefill outputs: [logits [1, ctx, V], past_kv [N, 2, 1, H, ctx-1, D]]
+          Decode inputs:   {input_ids [1,1], attention_mask [1, ctx], past_kv [N,2,1,H,ctx-1,D]}
+          Decode outputs:  [logits [1, 1, V], present_kv [N, 2, 1, H, ctx-1, D]]
+        """
+        import numpy as np
+
+        from sakura_simulator.tokenizer import SakuraTokenizer
+
+        if entry.context_length is None:
+            raise ValueError(
+                f"Model '{entry.name}' has use_kv_cache=True but context_length is not configured."
+            )
+
+        tokenizer = SakuraTokenizer(entry.tokenizer_path)
+        encoded = tokenizer.encode(prompt, max_length=entry.context_length)
+        input_ids = encoded["input_ids"]
+        attention_mask = encoded["attention_mask"]
+        prompt_len = input_ids.shape[1]
+        eos_id = tokenizer.eos_token_id
+
+        ctx = entry.context_length
+        pad_id = tokenizer.pad_token_id
+        if pad_id is None:
+            pad_id = eos_id if eos_id is not None else 0
+
+        # Pad prefill inputs to static shape [1, ctx]
+        input_ids_buf = np.full((1, ctx), pad_id, dtype=np.int64)
+        input_ids_buf[0, :prompt_len] = input_ids[0]
+        attn_buf = np.zeros((1, ctx), dtype=np.int64)
+        attn_buf[0, :prompt_len] = attention_mask[0]
+
+        prefill_dir = _resolve_deployment_dir(artifact_path, target=self._target)
+        prefill_runner = _make_runner(prefill_dir, self._target)
+
+        t0 = time.perf_counter()
+        prefill_runner.set_input({"input_ids": input_ids_buf, "attention_mask": attn_buf})
+        prefill_runner.run()
+        prefill_outputs = prefill_runner.get_outputs()
+        kv_cache = prefill_outputs[1]
+        # Sample from the last real token position (not the pad positions)
+        next_token = _sample_next_token(prefill_outputs[0][0, prompt_len - 1, :], temperature)
+
+        # Static decode attention mask [1, ctx]: covers the full KV buffer each step
+        attention_mask_decode = np.ones((1, ctx), dtype=np.int64)
+
+        generated: list[int] = []
+        if eos_id is None or next_token != eos_id:
+            generated.append(next_token)
+            if max_new_tokens > 1:
+                decode_dir = _resolve_deployment_dir(
+                    Path(entry.kv_decode_artifact_dir), target=self._target
+                )
+                decode_runner = _make_runner(decode_dir, self._target)
+                for _ in range(max_new_tokens - 1):
+                    decode_inputs = {
+                        "input_ids": np.array([[next_token]], dtype=np.int64),
+                        "attention_mask": attention_mask_decode,
+                        "past_kv": kv_cache,
+                    }
+                    decode_runner.set_input(decode_inputs)
+                    decode_runner.run()
+                    decode_outputs = decode_runner.get_outputs()
+                    kv_cache = decode_outputs[1]
+                    next_token = _sample_next_token(decode_outputs[0][0, 0, :], temperature)
+                    if eos_id is not None and next_token == eos_id:
+                        break
+                    generated.append(next_token)
+                    # Slide mask left: drop oldest slot, add new active slot
+                    attention_mask_decode = np.concatenate(
+                        [attention_mask_decode[:, 1:], np.ones((1, 1), dtype=np.int64)], axis=1
+                    )
+
+        latency_ms = (time.perf_counter() - t0) * 1000
         generated_ids = np.array(generated, dtype=np.int64).reshape(1, -1)
         text = tokenizer.decode(generated_ids)
         return InferResult(text=text, token_ids=generated, latency_ms=latency_ms)
