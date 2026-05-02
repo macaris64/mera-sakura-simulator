@@ -101,6 +101,105 @@ class TestModelEntryExtended:
         assert entry.inputs[0].dtype == "float32"
         assert entry.inputs[0].shape == [1, 3, 224, 224]
 
+    def test_given_no_llm_fields_when_constructed_then_model_type_defaults_to_vision(self):
+        # Given: no LLM-specific fields provided
+        # When: ModelEntry is created with only required fields
+        entry = ModelEntry(
+            name="m1",
+            version="1.0",
+            path="models/m1.onnx",
+            checksum="abc",
+            npu_constraints=self._make_constraints(),
+        )
+        # Then: model_type defaults to "vision", LLM fields default to None
+        assert entry.model_type == "vision"
+        assert entry.tokenizer_path is None
+        assert entry.context_length is None
+        assert entry.generation_config is None
+
+    def test_given_all_llm_fields_when_constructed_then_all_fields_stored(self):
+        # Given: all four LLM optional fields provided
+        # When: ModelEntry is created with LLM metadata
+        entry = ModelEntry(
+            name="tinyllama",
+            version="1.0.0",
+            path="models/tinyllama.onnx",
+            checksum="abc",
+            npu_constraints=self._make_constraints(),
+            model_type="llm",
+            tokenizer_path="tokenizers/tinyllama",
+            context_length=2048,
+            generation_config={"max_new_tokens": 128, "temperature": 1.0},
+        )
+        # Then: all LLM fields are accessible
+        assert entry.model_type == "llm"
+        assert entry.tokenizer_path == "tokenizers/tinyllama"
+        assert entry.context_length == 2048
+        assert entry.generation_config == {"max_new_tokens": 128, "temperature": 1.0}
+
+    def test_given_model_type_llm_only_when_constructed_then_optional_llm_fields_none(self):
+        # Given: model_type set to "llm" but optional LLM fields not provided
+        # When: ModelEntry is created
+        entry = ModelEntry(
+            name="m1",
+            version="1.0",
+            path="p",
+            checksum="c",
+            npu_constraints=self._make_constraints(),
+            model_type="llm",
+        )
+        # Then: optional fields default to None
+        assert entry.tokenizer_path is None
+        assert entry.context_length is None
+        assert entry.generation_config is None
+
+    def test_given_no_kv_cache_fields_when_constructed_then_use_kv_cache_defaults_false(self):
+        # Given: ModelEntry created without KV cache fields
+        # When: ModelEntry is created with only required fields
+        entry = ModelEntry(
+            name="m1",
+            version="1.0",
+            path="p",
+            checksum="c",
+            npu_constraints=self._make_constraints(),
+        )
+        # Then: use_kv_cache defaults to False and kv_decode_artifact_dir defaults to None
+        assert entry.use_kv_cache is False
+        assert entry.kv_decode_artifact_dir is None
+
+    def test_given_kv_cache_fields_when_constructed_then_fields_stored(self):
+        # Given: all KV cache fields provided
+        # When: ModelEntry is created with KV cache configuration
+        entry = ModelEntry(
+            name="distilgpt2-kvcache",
+            version="1.0.0",
+            path="models/distilgpt2-kvcache-prefill.onnx",
+            checksum="abc",
+            npu_constraints=self._make_constraints(),
+            model_type="llm",
+            use_kv_cache=True,
+            kv_decode_artifact_dir="artifacts/distilgpt2-kvcache/decode",
+            kv_decode_path="models/distilgpt2-kvcache-decode.onnx",
+        )
+        # Then: all KV cache fields are stored correctly
+        assert entry.use_kv_cache is True
+        assert entry.kv_decode_artifact_dir == "artifacts/distilgpt2-kvcache/decode"
+        assert entry.kv_decode_path == "models/distilgpt2-kvcache-decode.onnx"
+
+    def test_given_no_kv_decode_path_when_constructed_then_kv_decode_path_defaults_none(self):
+        # Given: KV cache entry without kv_decode_path
+        # When: ModelEntry is created
+        entry = ModelEntry(
+            name="m1",
+            version="1.0",
+            path="p",
+            checksum="c",
+            npu_constraints=self._make_constraints(),
+            use_kv_cache=True,
+        )
+        # Then: kv_decode_path defaults to None
+        assert entry.kv_decode_path is None
+
 
 class TestModelRegistryIsCompiled:
     def setup_method(self):

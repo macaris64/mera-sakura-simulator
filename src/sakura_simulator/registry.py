@@ -29,6 +29,13 @@ class ModelEntry(BaseModel):
     artifact_dir: str | None = None
     inputs: list[ModelInput] | None = None
     npu_constraints: NPUConstraints
+    model_type: str = "vision"
+    tokenizer_path: str | None = None
+    context_length: int | None = None
+    generation_config: dict | None = None
+    use_kv_cache: bool = False
+    kv_decode_artifact_dir: str | None = None
+    kv_decode_path: str | None = None
 
 
 class ModelManifest(BaseModel):

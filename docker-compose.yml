@@ -1,0 +1,27 @@
+services:
+
+  # One-shot CLI container.  The Dockerfile ENTRYPOINT is "sakura", so pass
+  # only the subcommand — not the binary name — when using docker compose run:
+  #
+  #   docker compose run --rm cli hello
+  #   docker compose run --rm cli models list
+  #   docker compose run --rm cli models inspect distilgpt2
+  #   docker compose run --rm cli models compile distilgpt2
+  #   docker compose run --rm cli models run distilgpt2 --iters 3
+  #   docker compose run --rm cli models infer distilgpt2 --prompt "Hello"
+  #   docker compose run --rm cli models remove distilgpt2
+  cli:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    image: sakura-simulator:latest
+    working_dir: /workspace
+    volumes:
+      - ./configs:/workspace/configs:ro
+      - ./models:/workspace/models
+      - ./artifacts:/workspace/artifacts
+      - ./tokenizers:/workspace/tokenizers:ro
+    environment:
+      USE_TF: "0"
+    restart: "no"

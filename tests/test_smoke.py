@@ -1,4 +1,4 @@
-"""Smoke tests — integration workflows for get, download, and remove.
+"""Smoke tests — integration workflows for get, download, remove, and infer.
 
 These tests use real ModelRegistry objects with real temp files.
 httpx is mocked only to avoid live network calls; all file I/O and SHA-256
@@ -6,6 +6,7 @@ verification run against actual data on disk.
 """
 
 import hashlib
+import sys
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -152,3 +153,127 @@ class TestSmokeRemoveModel:
         assert registry.is_space_ready(entry) is True  # mission-ready
         registry.remove("sakura-slm-v1")
         assert registry.is_space_ready(entry) is False  # decommissioned
+
+
+def _make_llm_manifest(tmpdir: Path) -> Path:
+    """Helper: write a real LLM manifest entry and return the path."""
+    manifest_path = tmpdir / "models.yaml"
+    artifact_dir = tmpdir / "artifacts"
+    manifest_path.write_text(
+        yaml.dump(
+            {
+                "models": [
+                    {
+                        "name": "tinyllama-smoke",
+                        "version": "1.0.0",
+                        "path": str(tmpdir / "tinyllama.onnx"),
+                        "checksum": "abc",
+                        "model_type": "llm",
+                        "tokenizer_path": "tokenizers/tinyllama",
+                        "context_length": 512,
+                        "artifact_dir": str(artifact_dir),
+                        "npu_constraints": {"max_power_watts": 15.0, "required_memory_mb": 2048},
+                    }
+                ]
+            }
+        )
+    )
+    return manifest_path
+
+
+class TestSmokeInferCommand:
+    """Smoke tests for models infer CLI path — no live model/tokenizer/mera required."""
+
+    def setup_method(self):
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self.tmpdir = Path(self._tmpdir.name)
+        self.manifest_path = _make_llm_manifest(self.tmpdir)
+        # Inject a default runtime mock so models_infer's lazy import doesn't
+        # trigger a fresh module import (which would update the package attribute
+        # and break patch() in TestMakeRunnerBranching later in the run).
+        self._default_rt_mod = MagicMock()
+        sys.modules["sakura_simulator.runtime"] = self._default_rt_mod
+
+    def teardown_method(self):
+        self._tmpdir.cleanup()
+        sys.modules.pop("sakura_simulator.runtime", None)
+
+    def test_smoke_infer_model_not_found_exits_1(self):
+        # Given: manifest exists but model name is not registered
+        from typer.testing import CliRunner as _CR
+
+        from sakura_simulator.cli import app as _app
+
+        # When: infer is called with an unknown model name
+        result = _CR().invoke(
+            _app,
+            [
+                "models",
+                "infer",
+                "nonexistent",
+                "--prompt",
+                "hi",
+                "--manifest",
+                str(self.manifest_path),
+            ],
+        )
+        # Then: exits with code 1
+        assert result.exit_code == 1
+
+    def test_smoke_infer_not_compiled_exits_1_with_hint(self):
+        # Given: model exists but artifact_dir does not exist (not compiled)
+        from typer.testing import CliRunner as _CR
+
+        from sakura_simulator.cli import app as _app
+
+        # When: infer is called
+        result = _CR().invoke(
+            _app,
+            [
+                "models",
+                "infer",
+                "tinyllama-smoke",
+                "--prompt",
+                "What is life?",
+                "--manifest",
+                str(self.manifest_path),
+            ],
+        )
+        # Then: exits with code 1 and compile hint in output
+        assert result.exit_code == 1
+        assert "not compiled" in result.output
+
+    def test_smoke_infer_compiled_model_calls_runtime_and_prints_text(self):
+        # Given: artifact_dir exists (model is compiled); MeraRuntime.infer is mocked
+        (self.tmpdir / "artifacts").mkdir()
+
+        mock_rt_mod = MagicMock()
+        mock_rt = MagicMock()
+        mock_rt_mod.MeraRuntime.return_value = mock_rt
+        infer_result = MagicMock()
+        infer_result.text = "Biosignature detected."
+        infer_result.latency_ms = 200.0
+        infer_result.token_ids = [1, 2, 3]
+        mock_rt.infer.return_value = infer_result
+        sys.modules["sakura_simulator.runtime"] = mock_rt_mod
+
+        from typer.testing import CliRunner as _CR
+
+        from sakura_simulator.cli import app as _app
+
+        # When: infer is called
+        result = _CR().invoke(
+            _app,
+            [
+                "models",
+                "infer",
+                "tinyllama-smoke",
+                "--prompt",
+                "What is life?",
+                "--manifest",
+                str(self.manifest_path),
+            ],
+        )
+        # Then: exits successfully and generated text is in output
+        assert result.exit_code == 0
+        assert "Biosignature detected." in result.output

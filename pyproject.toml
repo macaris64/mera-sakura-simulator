@@ -9,18 +9,22 @@ packages = [{include = "sakura_simulator", from = "src"}]
 [tool.poetry.dependencies]
 python = "^3.10"
 typer = {version = ">=0.25.1", extras = ["all"]}
-streamlit = "^1.35"
 mera = {version = ">=1.6.0.post1", extras = ["full"]}
 pydantic = "^2.13.3"
 pyyaml = "^6.0.3"
 httpx = "^0.28.1"
 numpy = ">=1.23,<2"
 onnx = ">=1.14,<1.17"
+transformers = {version = ">=4.30,<4.41", optional = true}
+
+[tool.poetry.extras]
+llm = ["transformers"]
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0"
 pytest-cov = "^5.0"
 ruff = "^0.15.12"
+optimum = {extras = ["exporters"], version = "^2.1.0"}
 
 [tool.poetry.scripts]
 sakura = "sakura_simulator.cli:app"
@@ -33,11 +37,12 @@ build-backend = "poetry.core.masonry.api"
 testpaths = [
     "tests/test_engine.py",
     "tests/test_cli.py",
-    "tests/test_app.py",
     "tests/test_registry.py",
     "tests/test_smoke.py",
     "tests/test_compiler.py",
     "tests/test_runtime.py",
+    "tests/test_tokenizer.py",
+    "tests/test_infer.py",
 ]
 addopts = [
     "--cov=sakura_simulator",

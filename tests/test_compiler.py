@@ -3,9 +3,27 @@
 import sys
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
+
+
+class TestHostArch:
+    def test_given_x86_64_machine_when_host_arch_then_returns_x86(self):
+        # Given: platform.machine() reports x86_64 (standard Linux x86)
+        from sakura_simulator.compiler import _host_arch
+
+        with patch("sakura_simulator.compiler.platform.machine", return_value="x86_64"):
+            # When / Then
+            assert _host_arch() == "x86"
+
+    def test_given_unknown_machine_when_host_arch_then_returns_x86_fallback(self):
+        # Given: platform.machine() returns '' (empty — common in containers)
+        from sakura_simulator.compiler import _host_arch
+
+        with patch("sakura_simulator.compiler.platform.machine", return_value=""):
+            # When / Then: falls back to 'x86' default
+            assert _host_arch() == "x86"
 
 
 class TestMeraCompilerInit:
@@ -148,4 +166,5 @@ class TestMeraCompilerCompile:
             mock_model,
             mera_platform=compiler._platform,
             target=compiler._target,
+            host_arch="x86",
         )

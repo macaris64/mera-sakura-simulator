@@ -206,6 +206,145 @@ class TestModelsCompileCommand:
         assert result.exit_code == 0
         assert "Compiled:" in result.output
 
+    def test_given_kv_cache_model_with_decode_path_when_compile_invoked_then_compiles_both_models(
+        self,
+    ):  # noqa: E501
+        # Given: KV cache model entry with kv_decode_path set
+        from pathlib import Path
+        from unittest.mock import MagicMock
+
+        entry = MagicMock()
+        entry.use_kv_cache = True
+        entry.kv_decode_path = "models/distilgpt2-kvcache-decode.onnx"
+        entry.kv_decode_artifact_dir = "artifacts/distilgpt2-kvcache/decode"
+        entry.name = "distilgpt2-kvcache"
+        self.mock_registry.get_model.return_value = entry
+        self.mock_compiler.compile.return_value = Path("/tmp/artifacts/distilgpt2-kvcache/prefill")
+        # When: models compile distilgpt2-kvcache is invoked
+        result = runner.invoke(app, ["models", "compile", "distilgpt2-kvcache"])
+        # Then: compiler called twice (prefill + decode) and both paths shown
+        assert result.exit_code == 0
+        assert self.mock_compiler.compile.call_count == 2
+        assert "Compiled KV decode:" in result.output
+
+    def test_given_kv_cache_model_without_decode_path_when_compile_invoked_then_compiles_only_prefill(  # noqa: E501
+        self,
+    ):
+        # Given: KV cache model entry with kv_decode_path not yet set
+        from pathlib import Path
+
+        entry = MagicMock()
+        entry.use_kv_cache = True
+        entry.kv_decode_path = None
+        entry.name = "distilgpt2-kvcache"
+        self.mock_registry.get_model.return_value = entry
+        self.mock_compiler.compile.return_value = Path("/tmp/artifacts/distilgpt2-kvcache/prefill")
+        # When: models compile distilgpt2-kvcache is invoked
+        result = runner.invoke(app, ["models", "compile", "distilgpt2-kvcache"])
+        # Then: compiler called once (prefill only); no KV decode line
+        assert result.exit_code == 0
+        assert self.mock_compiler.compile.call_count == 1
+        assert "Compiled KV decode:" not in result.output
+
+
+class TestModelsInferCommand:
+    def setup_method(self):
+        mock_reg_mod = MagicMock()
+        self.mock_registry = MagicMock()
+        mock_reg_mod.ModelRegistry.return_value = self.mock_registry
+        sys.modules["sakura_simulator.registry"] = mock_reg_mod
+
+        mock_runtime_mod = MagicMock()
+        self.mock_runtime = MagicMock()
+        mock_runtime_mod.MeraRuntime.return_value = self.mock_runtime
+        sys.modules["sakura_simulator.runtime"] = mock_runtime_mod
+
+    def teardown_method(self):
+        sys.modules.pop("sakura_simulator.registry", None)
+        sys.modules.pop("sakura_simulator.runtime", None)
+
+    def _make_infer_result(self, text="The biosignature is confirmed.", latency=55.0, n_tokens=7):
+        r = MagicMock()
+        r.text = text
+        r.latency_ms = latency
+        r.token_ids = list(range(n_tokens))
+        return r
+
+    def test_given_manifest_not_found_when_infer_invoked_then_exits_with_code_1(self):
+        # Given: registry constructor raises FileNotFoundError
+        sys.modules["sakura_simulator.registry"].ModelRegistry.side_effect = FileNotFoundError(
+            "manifest missing"
+        )
+        # When: models infer is invoked
+        result = runner.invoke(app, ["models", "infer", "tinyllama", "--prompt", "hi"])
+        # Then: exits with code 1
+        assert result.exit_code == 1
+
+    def test_given_model_not_found_when_infer_invoked_then_exits_with_code_1(self):
+        # Given: registry returns None for the model
+        self.mock_registry.get_model.return_value = None
+        # When: models infer is invoked
+        result = runner.invoke(app, ["models", "infer", "ghost", "--prompt", "hi"])
+        # Then: exits with code 1 and error in output
+        assert result.exit_code == 1
+        assert "Error" in result.output
+
+    def test_given_model_not_compiled_when_infer_invoked_then_exits_with_code_1(self):
+        # Given: model exists but is not compiled
+        self.mock_registry.is_compiled.return_value = False
+        # When: models infer is invoked
+        result = runner.invoke(app, ["models", "infer", "tinyllama", "--prompt", "hi"])
+        # Then: exits with code 1 and compile hint in output
+        assert result.exit_code == 1
+        assert "not compiled" in result.output
+
+    def test_given_runtime_raises_value_error_when_infer_invoked_then_exits_with_code_1(self):
+        # Given: model is compiled but MeraRuntime.infer() raises ValueError
+        self.mock_registry.is_compiled.return_value = True
+        self.mock_runtime.infer.side_effect = ValueError("not an LLM")
+        # When: models infer is invoked
+        result = runner.invoke(app, ["models", "infer", "tinyllama", "--prompt", "hi"])
+        # Then: exits with code 1 and error message
+        assert result.exit_code == 1
+        assert "Error" in result.output
+
+    def test_given_compiled_llm_when_infer_invoked_then_prints_text_and_stats(self):
+        # Given: model is compiled and inference succeeds
+        self.mock_registry.is_compiled.return_value = True
+        self.mock_runtime.infer.return_value = self._make_infer_result()
+        # When: models infer is invoked
+        result = runner.invoke(
+            app, ["models", "infer", "tinyllama", "--prompt", "What is a biosignature?"]
+        )
+        # Then: exits successfully and output contains generated text and stats
+        assert result.exit_code == 0
+        assert "The biosignature is confirmed." in result.output
+        assert "ms" in result.output
+
+    def test_given_custom_options_when_infer_invoked_then_runtime_called_with_correct_args(self):
+        # Given: model is compiled
+        self.mock_registry.is_compiled.return_value = True
+        self.mock_runtime.infer.return_value = self._make_infer_result()
+        # When: models infer is invoked with custom --max-new-tokens and --temperature
+        runner.invoke(
+            app,
+            [
+                "models",
+                "infer",
+                "tinyllama",
+                "--prompt",
+                "hello",
+                "--max-new-tokens",
+                "64",
+                "--temperature",
+                "0.7",
+            ],
+        )
+        # Then: MeraRuntime.infer received the custom options
+        call_kwargs = self.mock_runtime.infer.call_args[1]
+        assert call_kwargs["max_new_tokens"] == 64
+        assert abs(call_kwargs["temperature"] - 0.7) < 1e-6
+
 
 class TestModelsRunCommand:
     def setup_method(self):
