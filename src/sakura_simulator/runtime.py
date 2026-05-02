@@ -242,7 +242,7 @@ class MeraRuntime:
             raise ValueError(f"Artifact directory not found: {artifact_path}")
         if entry.use_kv_cache and entry.kv_decode_artifact_dir is None:
             raise ValueError(
-                f"Model '{entry.name}' has use_kv_cache=True but no kv_decode_artifact_dir configured."
+                f"Model '{entry.name}' has use_kv_cache=True but no kv_decode_artifact_dir."
             )
         if entry.use_kv_cache:
             return self._infer_with_kv_cache(

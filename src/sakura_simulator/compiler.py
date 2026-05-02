@@ -46,5 +46,7 @@ class MeraCompiler:
         deployer = mera.TVMDeployer(str(artifact_path))
         loader = mera.ModelLoader(deployer)
         model = loader.from_onnx(str(source_path), model_name=entry.name)
-        deployer.deploy(model, mera_platform=self._platform, target=self._target, host_arch=_host_arch())
+        deployer.deploy(
+            model, mera_platform=self._platform, target=self._target, host_arch=_host_arch()
+        )
         return artifact_path

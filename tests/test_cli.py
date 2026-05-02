@@ -206,7 +206,9 @@ class TestModelsCompileCommand:
         assert result.exit_code == 0
         assert "Compiled:" in result.output
 
-    def test_given_kv_cache_model_with_decode_path_when_compile_invoked_then_compiles_both_models(self):
+    def test_given_kv_cache_model_with_decode_path_when_compile_invoked_then_compiles_both_models(
+        self,
+    ):  # noqa: E501
         # Given: KV cache model entry with kv_decode_path set
         from pathlib import Path
         from unittest.mock import MagicMock
@@ -225,7 +227,9 @@ class TestModelsCompileCommand:
         assert self.mock_compiler.compile.call_count == 2
         assert "Compiled KV decode:" in result.output
 
-    def test_given_kv_cache_model_without_decode_path_when_compile_invoked_then_compiles_only_prefill(self):
+    def test_given_kv_cache_model_without_decode_path_when_compile_invoked_then_compiles_only_prefill(  # noqa: E501
+        self,
+    ):
         # Given: KV cache model entry with kv_decode_path not yet set
         from pathlib import Path
 

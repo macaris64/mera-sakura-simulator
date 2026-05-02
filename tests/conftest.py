@@ -47,8 +47,8 @@ sys.modules["mera"] = _mera_mock
 sys.modules["mera.mera_deployment"] = _mera_deployment_mock
 
 # --- Typer + Click 8.3.3 compatibility patch -----------------------------------
-import click.core as _click_core
-import typer.core as _typer_core
+import click.core as _click_core  # noqa: E402
+import typer.core as _typer_core  # noqa: E402
 
 _orig_typer_option_init = _typer_core.TyperOption.__init__
 

@@ -511,10 +511,16 @@ class TestMeraRuntimeInferKVCache:
         e.tokenizer_path = "tokenizers/distilgpt2"
         e.context_length = context_length
         e.use_kv_cache = True
-        e.kv_decode_artifact_dir = kv_decode_artifact_dir if kv_decode_artifact_dir is not None else str(self.artifact_path)
+        e.kv_decode_artifact_dir = (
+            kv_decode_artifact_dir
+            if kv_decode_artifact_dir is not None
+            else str(self.artifact_path)
+        )
         return e
 
-    def _configure_tokenizer(self, prompt_len: int = 3, eos_id: int | None = 99, pad_id: int | None = 0):
+    def _configure_tokenizer(
+        self, prompt_len: int = 3, eos_id: int | None = 99, pad_id: int | None = 0
+    ):
         input_ids = np.ones((1, prompt_len), dtype=np.int64)
         attn_mask = np.ones((1, prompt_len), dtype=np.int64)
         self.mock_tokenizer.encode.return_value = {
@@ -559,7 +565,9 @@ class TestMeraRuntimeInferKVCache:
         with pytest.raises(ValueError, match="context_length"):
             MeraRuntime().infer(entry, self.artifact_path, "hello")
 
-    def test_given_kv_cache_entry_and_pad_token_id_none_with_eos_when_infer_then_uses_eos_as_pad(self):
+    def test_given_kv_cache_entry_and_pad_token_id_none_with_eos_when_infer_then_uses_eos_as_pad(
+        self,
+    ):  # noqa: E501
         # Given: pad_token_id is None, eos_id is 50256 — fallback: use eos_id for padding
         self._configure_tokenizer(prompt_len=2, eos_id=50256, pad_id=None)
         prefill_runner = self._make_prefill_runner(prompt_len=2)
@@ -578,7 +586,9 @@ class TestMeraRuntimeInferKVCache:
         assert result.token_ids == []
         mock_make_runner.assert_called_once()
 
-    def test_given_kv_cache_entry_and_pad_token_id_none_no_eos_when_infer_then_uses_zero_as_pad(self):
+    def test_given_kv_cache_entry_and_pad_token_id_none_no_eos_when_infer_then_uses_zero_as_pad(
+        self,
+    ):  # noqa: E501
         # Given: both pad_token_id and eos_id are None — fallback: use 0 as pad
         self._configure_tokenizer(prompt_len=2, eos_id=None, pad_id=None)
         prefill_runner = self._make_prefill_runner(prompt_len=2)
@@ -596,7 +606,9 @@ class TestMeraRuntimeInferKVCache:
         # Then: one token generated; no crash (0 used as pad fallback)
         assert result.token_ids == [7]
 
-    def test_given_kv_cache_entry_when_infer_then_prefill_runner_called_with_full_prompt_shape(self):
+    def test_given_kv_cache_entry_when_infer_then_prefill_runner_called_with_full_prompt_shape(
+        self,
+    ):  # noqa: E501
         # Given: KV cache entry with context_length=512, prompt of length 5
         self._configure_tokenizer(prompt_len=5, eos_id=99, pad_id=0)
         prefill_runner = self._make_prefill_runner(prompt_len=5)
@@ -609,7 +621,10 @@ class TestMeraRuntimeInferKVCache:
 
         prefill_runner.set_input.side_effect = capture
         with (
-            patch("sakura_simulator.runtime._make_runner", side_effect=[prefill_runner, decode_runner]),
+            patch(
+                "sakura_simulator.runtime._make_runner",
+                side_effect=[prefill_runner, decode_runner],
+            ),
             patch("sakura_simulator.runtime._sample_next_token", side_effect=[3, 99]),
         ):
             from sakura_simulator.runtime import MeraRuntime
@@ -633,7 +648,10 @@ class TestMeraRuntimeInferKVCache:
 
         decode_runner.set_input.side_effect = capture
         with (
-            patch("sakura_simulator.runtime._make_runner", side_effect=[prefill_runner, decode_runner]),
+            patch(
+                "sakura_simulator.runtime._make_runner",
+                side_effect=[prefill_runner, decode_runner],
+            ),
             patch("sakura_simulator.runtime._sample_next_token", side_effect=[3, 99]),
         ):
             from sakura_simulator.runtime import MeraRuntime
@@ -646,7 +664,9 @@ class TestMeraRuntimeInferKVCache:
         assert captured_inputs["input_ids"].shape == (1, 1)
         assert captured_inputs["attention_mask"].shape == (1, 512)
 
-    def test_given_kv_cache_entry_and_eos_after_prefill_when_infer_then_returns_no_decode_tokens(self):
+    def test_given_kv_cache_entry_and_eos_after_prefill_when_infer_then_returns_no_decode_tokens(
+        self,
+    ):  # noqa: E501
         # Given: _sample_next_token returns EOS immediately after prefill
         self._configure_tokenizer(prompt_len=3, eos_id=5)
         prefill_runner = self._make_prefill_runner(prompt_len=3)
@@ -658,7 +678,9 @@ class TestMeraRuntimeInferKVCache:
             from sakura_simulator.runtime import MeraRuntime
 
             # When: infer is called
-            result = MeraRuntime().infer(self._make_entry(), self.artifact_path, "hello", max_new_tokens=10)
+            result = MeraRuntime().infer(
+                self._make_entry(), self.artifact_path, "hello", max_new_tokens=10
+            )
         # Then: no tokens generated; decode runner never created
         assert result.token_ids == []
         mock_make_runner.assert_called_once()
@@ -669,13 +691,18 @@ class TestMeraRuntimeInferKVCache:
         prefill_runner = self._make_prefill_runner(prompt_len=3)
         decode_runner = self._make_decode_runner()
         with (
-            patch("sakura_simulator.runtime._make_runner", side_effect=[prefill_runner, decode_runner]),
+            patch(
+                "sakura_simulator.runtime._make_runner",
+                side_effect=[prefill_runner, decode_runner],
+            ),
             patch("sakura_simulator.runtime._sample_next_token", side_effect=[7, 5]),
         ):
             from sakura_simulator.runtime import MeraRuntime
 
             # When: infer is called
-            result = MeraRuntime().infer(self._make_entry(), self.artifact_path, "hello", max_new_tokens=10)
+            result = MeraRuntime().infer(
+                self._make_entry(), self.artifact_path, "hello", max_new_tokens=10
+            )
         # Then: only the prefill token (7) is included; EOS (5) is excluded
         assert result.token_ids == [7]
         assert 5 not in result.token_ids
@@ -686,17 +713,24 @@ class TestMeraRuntimeInferKVCache:
         prefill_runner = self._make_prefill_runner(prompt_len=3)
         decode_runner = self._make_decode_runner()
         with (
-            patch("sakura_simulator.runtime._make_runner", side_effect=[prefill_runner, decode_runner]),
+            patch(
+                "sakura_simulator.runtime._make_runner",
+                side_effect=[prefill_runner, decode_runner],
+            ),
             patch("sakura_simulator.runtime._sample_next_token", return_value=7),
         ):
             from sakura_simulator.runtime import MeraRuntime
 
             # When: infer is called with max_new_tokens=3
-            result = MeraRuntime().infer(self._make_entry(), self.artifact_path, "hello", max_new_tokens=3)
+            result = MeraRuntime().infer(
+                self._make_entry(), self.artifact_path, "hello", max_new_tokens=3
+            )
         # Then: exactly 3 tokens (1 from prefill + 2 from decode loop)
         assert len(result.token_ids) == 3
 
-    def test_given_kv_cache_entry_and_max_new_tokens_one_when_infer_then_only_prefill_runner_used(self):
+    def test_given_kv_cache_entry_and_max_new_tokens_one_when_infer_then_only_prefill_runner_used(
+        self,
+    ):  # noqa: E501
         # Given: max_new_tokens=1 — only the prefill sample is needed, no decode runner
         self._configure_tokenizer(prompt_len=3, eos_id=99)
         prefill_runner = self._make_prefill_runner(prompt_len=3)
@@ -708,7 +742,9 @@ class TestMeraRuntimeInferKVCache:
             from sakura_simulator.runtime import MeraRuntime
 
             # When: infer is called with max_new_tokens=1
-            result = MeraRuntime().infer(self._make_entry(), self.artifact_path, "hello", max_new_tokens=1)
+            result = MeraRuntime().infer(
+                self._make_entry(), self.artifact_path, "hello", max_new_tokens=1
+            )
         # Then: exactly 1 token; decode runner never created
         assert result.token_ids == [7]
         mock_make_runner.assert_called_once()
@@ -719,7 +755,10 @@ class TestMeraRuntimeInferKVCache:
         prefill_runner = self._make_prefill_runner(prompt_len=3)
         decode_runner = self._make_decode_runner()
         with (
-            patch("sakura_simulator.runtime._make_runner", side_effect=[prefill_runner, decode_runner]),
+            patch(
+                "sakura_simulator.runtime._make_runner",
+                side_effect=[prefill_runner, decode_runner],
+            ),
             patch("sakura_simulator.runtime._sample_next_token", return_value=7),
         ):
             from sakura_simulator.runtime import MeraRuntime

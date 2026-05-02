@@ -2,7 +2,7 @@
 
 **SAKURA-II NPU Simulator** is a software-in-the-loop simulation platform for the [EdgeCortix SAKURA-II Neural Processing Unit](https://www.edgecortix.com/en/products/sakura). It drives the full [MERA framework](https://www.edgecortix.com/en/products/mera) compiler and runtime against `mera.Target.Simulator` so that model compilation, hardware-accurate inference, and LLM text generation can be developed, tested, and benchmarked without physical NPU hardware.
 
-The project ships a **Typer CLI** (`sakura`), a **Streamlit web UI**, a **Pydantic-validated model registry**, and a **full autoregressive LLM inference pipeline** — all built with strict **Test-Driven Development (TDD)** and **Behavior-Driven Development (BDD)** practices, with 100% branch coverage enforced on every commit.
+The project ships a **Typer CLI** (`sakura`), a **Pydantic-validated model registry**, and a **full autoregressive LLM inference pipeline** — all built with strict **Test-Driven Development (TDD)** and **Behavior-Driven Development (BDD)** practices, with 100% branch coverage enforced on every commit.
 
 > Targets `mera.Target.Simulator` + `mera.Platform.SAKURA_2C` (`DNAA600L0003`). No physical NPU required.
 
@@ -15,8 +15,7 @@ The project ships a **Typer CLI** (`sakura`), a **Streamlit web UI**, a **Pydant
 - **Model Registry**: YAML-driven manifest with Pydantic schema validation, SHA-256 integrity checking, HTTP download via httpx, and disk-level remove
 - **LLM Inference**: autoregressive text generation from a prompt — greedy or multinomial sampling, EOS-aware loop, latency reporting
 - **SakuraTokenizer**: wraps HuggingFace `transformers.AutoTokenizer` with encode (optional truncation) and decode
-- **Web UI** via [Streamlit](https://streamlit.io/): activate the engine, manage models, and run LLM inference from a browser
-- **Docker support**: multi-stage image with `docker compose` services for both CLI and web UI
+- **Docker support**: multi-stage image with a `docker compose` CLI service
 - **100% branch coverage** enforced by pytest-cov on every commit
 - **BDD-style tests** with Given-When-Then structure, plus smoke tests for end-to-end workflows
 - **Pre-commit hook** that blocks commits if tests fail
@@ -30,7 +29,6 @@ The project ships a **Typer CLI** (`sakura`), a **Streamlit web UI**, a **Pydant
 flowchart TD
     subgraph UI["User Interfaces"]
         CLI["CLI\nsakura hello / models …\ncli.py"]
-        WEB["Web UI\nlocalhost:8501\napp.py"]
     end
 
     subgraph Core["sakura_simulator — Core Package"]
@@ -58,10 +56,6 @@ flowchart TD
     CLI --> COMP
     CLI --> RT
     CLI --> TOK
-    WEB --> ENG
-    WEB --> REG
-    WEB --> RT
-    WEB --> TOK
 
     ENG --> SIM
     ENG --> PLT
@@ -126,10 +120,6 @@ docker compose run --rm cli models compile mobilenet_v2
 
 # Run inference from compiled artifacts
 docker compose run --rm cli models run mobilenet_v2 --iters 3
-
-# Start the web UI
-docker compose up web
-# Open http://localhost:8501
 ```
 
 Large data directories (`models/`, `artifacts/`, `tokenizers/`) are bind-mounted from the host workspace at runtime — they are never baked into the image.
@@ -176,33 +166,24 @@ poetry run sakura hello
 poetry run sakura models list
 
 # Inspect NPU constraints for a specific model
-poetry run sakura models inspect resnet50
+poetry run sakura models inspect distilgpt2
 
 # Download a model file and verify its SHA-256 checksum
-poetry run sakura models download resnet50
+poetry run sakura models download mobilenet_v2
 
 # Remove a downloaded model file from disk
-poetry run sakura models remove resnet50
+poetry run sakura models remove mobilenet_v2
 
 # Compile a model into MERA deployment artifacts
-poetry run sakura models compile mobilenet_v2
+poetry run sakura models compile distilgpt2
 
 # Run inference from compiled artifacts (Simulator uses TVM graph executor)
-poetry run sakura models run mobilenet_v2 --iters 1
+poetry run sakura models run distilgpt2 --iters 1
 
 # Run LLM inference — send a text prompt and get generated text back
 poetry run sakura models infer tinyllama-1.1b --prompt "What is a biosignature?"
 poetry run sakura models infer tinyllama-1.1b --prompt "Hello" --max-new-tokens 64 --temperature 0.7
 ```
-
-### Web UI
-
-```bash
-poetry run streamlit run src/sakura_simulator/app.py
-# Open http://localhost:8501
-```
-
-The Streamlit UI includes a **Model Control Center** sidebar (compile, run, space-ready status) and an **LLM Inference panel** for text-generation models: enter a prompt, set max new tokens, and click Generate.
 
 ---
 
@@ -234,19 +215,18 @@ Manifest entry example:
 
 ## Test Coverage
 
-165 tests across 9 test files. **100% branch coverage** enforced on every run.
+169 tests across 8 test files. **100% branch coverage** enforced on every run.
 
 | Module | Statements | Branches | Cover |
 |---|---|---|---|
 | `engine.py` | 30 | 0 | **100%** |
-| `cli.py` | 116 | 16 | **100%** |
-| `registry.py` | 76 | 18 | **100%** |
-| `runtime.py` | 157 | 34 | **100%** |
-| `tokenizer.py` | 19 | 2 | **100%** |
-| `compiler.py` | 23 | 6 | **100%** |
-| `app.py` | 58 | 12 | **100%** |
+| `cli.py` | 120 | 18 | **100%** |
+| `registry.py` | 79 | 18 | **100%** |
+| `runtime.py` | 233 | 58 | **100%** |
+| `tokenizer.py` | 24 | 2 | **100%** |
+| `compiler.py` | 27 | 6 | **100%** |
 | `__init__.py` | 3 | 0 | **100%** |
-| **Total** | **482** | **88** | **100%** |
+| **Total** | **516** | **102** | **100%** |
 
 Run `poetry run pytest` to reproduce. HTML report: `open htmlcov/index.html`.
 
@@ -258,7 +238,6 @@ Run `poetry run pytest` to reproduce. HTML report: `open htmlcov/index.html`.
 src/sakura_simulator/
     engine.py        SakuraEngine — wraps mera.Target, owns the greeting constant
     cli.py           Typer CLI (hello, models list/inspect/download/remove/compile/run/infer)
-    app.py           Streamlit UI + Model Control Center + LLM Inference panel
     compiler.py      MeraCompiler — compile models into deployment artifacts
     registry.py      ModelRegistry — YAML loader, Pydantic validation, SHA-256, download, remove
     runtime.py       MeraRuntime — run() for vision, infer() for LLM; InferResult dataclass
@@ -269,10 +248,9 @@ configs/
     models.yaml      Model manifest — vision and LLM entries with all supported fields
 
 tests/
-    conftest.py      sys.modules mock injection (streamlit + Typer/Click compat patch)
+    conftest.py      mera stub + Typer/Click compat patch via sys.modules injection
     test_engine.py   BDD tests — SakuraEngine
     test_cli.py      BDD tests — CLI commands including models infer
-    test_app.py      BDD tests — Streamlit page + LLM Inference panel
     test_registry.py BDD tests — ModelRegistry + LLM manifest fields
     test_compiler.py BDD tests — MeraCompiler
     test_runtime.py  BDD tests — MeraRuntime, RunResult, runner internals
@@ -281,7 +259,7 @@ tests/
     test_smoke.py    Smoke tests — full CLI workflows (download/remove/infer)
 
 Dockerfile           Multi-stage build (builder + runtime); mera[full] + system libs
-docker-compose.yml   cli service (one-shot) + web service (Streamlit daemon, port 8501)
+docker-compose.yml   cli service (one-shot CLI container)
 .dockerignore        Excludes .venv, models/, artifacts/, tokenizers/ from build context
 .claude/             Claude Code settings, agent instructions, slash commands
 .claude_plugin/      NPU telemetry simulation plugin for Claude Code
@@ -324,7 +302,6 @@ poetry run pytest          # must show 100%
 | `poetry run sakura models compile <name>` | Compile model into deployment artifacts |
 | `poetry run sakura models run <name> [--iters N]` | Run inference from compiled artifacts |
 | `poetry run sakura models infer <name> --prompt "..."` | LLM text generation |
-| `poetry run streamlit run src/sakura_simulator/app.py` | Launch web UI |
 
 ---
 
@@ -337,7 +314,7 @@ This project depends on the real [EdgeCortix MERA SDK](https://github.com/Edgeco
 
 The [MERA framework](https://www.edgecortix.com/en/products/mera) supports PyTorch, TensorFlow, and ONNX models with INT8 quantization and multiple deployment backends.
 
-Only `streamlit` is mocked in tests (to avoid requiring a running Streamlit server); `mera` is imported directly from the installed package.
+`mera` is stubbed in tests via `sys.modules` injection in `conftest.py` so the real SDK (and its heavy transitive dependencies) is never imported during the test run.
 
 ---
 

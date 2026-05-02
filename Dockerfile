@@ -98,8 +98,7 @@ COPY --from=builder /venv /venv
 # Python one-shot — no extra tools required, and the library works correctly.
 RUN echo aW1wb3J0IHN0cnVjdCxvcwpkZWYgYyhwKToKICAgIHRyeToKICAgICAgICB3aXRoIG9wZW4ocCwicitiIikgYXMgZjoKICAgICAgICAgICAgaWYgZi5yZWFkKDQpIT1iIn9FTEYiOnJldHVybgogICAgICAgICAgICBpZiBzdHJ1Y3QudW5wYWNrKCJCIixmLnJlYWQoMSkpWzBdIT0yOnJldHVybgogICAgICAgICAgICBmLnNlZWsoMCk7aD1mLnJlYWQoNjQpCiAgICAgICAgICAgIG89c3RydWN0LnVucGFja19mcm9tKCI8USIsaCwzMilbMF0KICAgICAgICAgICAgZT1zdHJ1Y3QudW5wYWNrX2Zyb20oIjxIIixoLDU0KVswXQogICAgICAgICAgICBuPXN0cnVjdC51bnBhY2tfZnJvbSgiPEgiLGgsNTYpWzBdCiAgICAgICAgICAgIGZvciBpIGluIHJhbmdlKG4pOgogICAgICAgICAgICAgICAgZi5zZWVrKG8raSplKTtwaD1mLnJlYWQoZSkKICAgICAgICAgICAgICAgIGlmIHN0cnVjdC51bnBhY2tfZnJvbSgiPEkiLHBoLDApWzBdPT0weDY0NzRlNTUxOgogICAgICAgICAgICAgICAgICAgIGZsPXN0cnVjdC51bnBhY2tfZnJvbSgiPEkiLHBoLDQpWzBdCiAgICAgICAgICAgICAgICAgICAgaWYgZmwmMTpmLnNlZWsobytpKmUrNCk7Zi53cml0ZShzdHJ1Y3QucGFjaygiPEkiLGZsJn4xKSkKICAgIGV4Y2VwdDpwYXNzCltjKG9zLnBhdGguam9pbihyLGZuKSkgZm9yIHIsXyxmcyBpbiBvcy53YWxrKCIvdmVudiIpIGZvciBmbiBpbiBmcyBpZiAiLnNvIiBpbiBmbl0K | base64 -d | python3
 
-# Put the venv's bin/ on PATH so sakura, streamlit, and python resolve to the
-# venv binaries rather than the system Python.
+# Put the venv's bin/ on PATH so sakura and python resolve to the venv binaries.
 ENV PATH="/venv/bin:$PATH"
 
 # meratvm_internal._cpp_lib_load resolves the mera native library by searching
@@ -124,12 +123,6 @@ ENV LD_LIBRARY_PATH=/venv/lib
 # descriptor pool on import — avoids conflicts with the transformers library.
 # tokenizer.py also sets this, but the Dockerfile ENV covers all sub-processes.
 ENV USE_TF=0
-
-# Streamlit must bind to 0.0.0.0 inside Docker or the port is unreachable from
-# the host.  --server.headless=true suppresses the interactive TTY prompt that
-# would otherwise hang the container on startup.
-ENV STREAMLIT_SERVER_ADDRESS=0.0.0.0 \
-    STREAMLIT_SERVER_PORT=8501
 
 # All relative paths in configs/models.yaml (models/, artifacts/, tokenizers/)
 # resolve from the working directory.  Bind mounts in docker-compose populate

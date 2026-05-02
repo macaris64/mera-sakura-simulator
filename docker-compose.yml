@@ -5,12 +5,11 @@ services:
   #
   #   docker compose run --rm cli hello
   #   docker compose run --rm cli models list
-  #   docker compose run --rm cli models inspect mobilenet_v2
-  #   docker compose run --rm cli models download mobilenet_v2
-  #   docker compose run --rm cli models compile mobilenet_v2
-  #   docker compose run --rm cli models run mobilenet_v2 --iters 3
+  #   docker compose run --rm cli models inspect distilgpt2
+  #   docker compose run --rm cli models compile distilgpt2
+  #   docker compose run --rm cli models run distilgpt2 --iters 3
   #   docker compose run --rm cli models infer distilgpt2 --prompt "Hello"
-  #   docker compose run --rm cli models remove mobilenet_v2
+  #   docker compose run --rm cli models remove distilgpt2
   cli:
     build:
       context: .
@@ -26,43 +25,3 @@ services:
     environment:
       USE_TF: "0"
     restart: "no"
-
-  # Long-running Streamlit web UI.
-  # Usage:
-  #   docker compose up web
-  #   Open http://localhost:8501
-  web:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: runtime
-    image: sakura-simulator:latest
-    working_dir: /workspace
-    entrypoint: ["streamlit", "run"]
-    command:
-      - "/venv/lib/python3.10/site-packages/sakura_simulator/app.py"
-      - "--server.address=0.0.0.0"
-      - "--server.port=8501"
-      - "--server.headless=true"
-    ports:
-      - "8501:8501"
-    volumes:
-      - ./configs:/workspace/configs:ro
-      - ./models:/workspace/models
-      - ./artifacts:/workspace/artifacts
-      - ./tokenizers:/workspace/tokenizers:ro
-    environment:
-      USE_TF: "0"
-      STREAMLIT_SERVER_ADDRESS: "0.0.0.0"
-      STREAMLIT_SERVER_PORT: "8501"
-    restart: unless-stopped
-    healthcheck:
-      test:
-        - "CMD"
-        - "python3"
-        - "-c"
-        - "import urllib.request; urllib.request.urlopen('http://localhost:8501/_stcore/health')"
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 15s
